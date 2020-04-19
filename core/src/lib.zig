@@ -33,28 +33,28 @@ pub fn World(comptime entityT: type, comptime storageT: type, comptime component
     }
 
     return struct {
-        const Self = @This();
-        allocator: *Allocator,
-
-        //----- Entities
         pub const Entity = struct {
             id: entityT,
             internal: entityT,
         };
 
+        pub const WorldComponentStorage = ComponentStorage(entityT, storageT, componentT);
+
+        pub const WorldSystem = fn () void;
+
+        const Self = @This();
+        allocator: *Allocator,
+
+        //----- Entities
         entities: []?Entity,
         current_entityid: entityT = 0,
         entities_deleted: entityT = 0,
         next_recycleid: ?entityT = null,
 
         //----- Components
-        pub const WorldComponentStorage = ComponentStorage(entityT, storageT, componentT);
-
         component_storages: []WorldComponentStorage,
 
         //----- Systems
-        pub const WorldSystem = fn () void;
-
         systems: std.AutoHashMap(WorldSystem, void),
         current_systemid: storageT = 0,
 
