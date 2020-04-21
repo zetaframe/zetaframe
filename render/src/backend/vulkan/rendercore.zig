@@ -5,6 +5,8 @@ const Allocator = std.mem.Allocator;
 const c = @import("../../c2.zig");
 const VK_SUCCESS = c.enum_VkResult.VK_SUCCESS;
 
+const vma = @import("../../vma.zig");
+
 const windowing = @import("../../windowing.zig");
 
 const backend = @import("../backend.zig");
@@ -21,6 +23,7 @@ const Command = @import("command.zig").Command;
 pub const RenderCore = struct {
     const Self = @This();
     allocator: *Allocator,
+    vallocator: *vma.VmaAllocator,
 
     swapchain: Swapchain,
     render_pass: RenderPass,
@@ -35,6 +38,7 @@ pub const RenderCore = struct {
     pub fn new(swapchain: Swapchain, renderPass: RenderPass, pipeline: Pipeline, command: Command) Self {
         return Self{
             .allocator = undefined,
+            .vallocator = undefined,
 
             .swapchain = swapchain,
             .render_pass = renderPass,
@@ -48,7 +52,7 @@ pub const RenderCore = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, recreate: bool, gpu: Gpu, window: *windowing.Window) !void {
+    pub fn init(self: *Self, allocator: *Allocator, vallocator: *vma.VmaAllocator, recreate: bool, gpu: Gpu, window: *windowing.Window) !void {
         self.allocator = allocator;
 
         self.gpu = gpu;
@@ -63,7 +67,7 @@ pub const RenderCore = struct {
 
         try self.createFramebuffers();
 
-        try self.command.init(self.allocator, self.gpu, self.swapchain.extent, self.framebuffers, self.render_pass.render_pass, self.pipeline.pipeline);
+        try self.command.init(self.allocator, vallocator, self.gpu, self.swapchain.extent, self.framebuffers, self.render_pass.render_pass, self.pipeline.pipeline);
     }
 
     pub fn deinit(self: *Self, recreate: bool) void {

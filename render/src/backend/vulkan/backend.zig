@@ -2,6 +2,7 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
+
 const testing = std.testing;
 const panic = std.debug.panic;
 
@@ -16,8 +17,12 @@ pub const Swapchain = swapchain.Swapchain;
 pub const Command = @import("command.zig").Command;
 pub const RenderCore = @import("rendercore.zig").RenderCore;
 
+pub const buffer = @import("buffer.zig");
+
 const c = @import("../../c2.zig");
 const VK_SUCCESS = c.enum_VkResult.VK_SUCCESS;
+
+const vma = @import("../../vma.zig");
 
 pub const VulkanError = error{
     InstanceCreationFailed,
@@ -67,9 +72,9 @@ pub const VulkanError = error{
 
     CreateBufferFailed,
 
-    AllocateMemoryFailed,
-    MapMemoryFailed,
-    FreeUnknownAllocation,
+    CreateAllocatorFailed,
+
+    BindMemoryFailed,
 };
 
 const enableValidationLayers = std.debug.runtime_safety;
@@ -79,6 +84,7 @@ const MAX_FRAMES_IN_FLIGHT: u32 = 2;
 
 pub const VkBackend = struct {
     allocator: *Allocator,
+    vallocator: vma.VmaAllocator,
 
     name: [*c]const u8,
     window: *windowing.Window,
@@ -100,6 +106,7 @@ pub const VkBackend = struct {
     pub fn new(allocator: *Allocator, name: [*c]const u8, window: *windowing.Window, rendercore: RenderCore) VkBackend {
         return VkBackend{
             .allocator = allocator,
+            .vallocator = undefined,
 
             .name = name,
             .window = window,
@@ -125,7 +132,33 @@ pub const VkBackend = struct {
         self.gpu = Gpu.new(self.instance, self.window);
         try self.gpu.init(self.allocator);
 
-        try self.rendercore.init(self.allocator, false, self.gpu, self.window);
+        const allocInfo = vma.VmaAllocatorCreateInfo{
+            .physicalDevice = self.gpu.physical_device,
+            .device = self.gpu.device,
+            .instance = self.instance,
+
+            .preferredLargeHeapBlockSize = 0,
+            .pHeapSizeLimit = null,
+
+            .pAllocationCallbacks = null,
+            .pDeviceMemoryCallbacks = null,
+
+            .frameInUseCount = MAX_FRAMES_IN_FLIGHT - 1,
+
+            .vulkanApiVersion = c.VK_API_VERSION_1_0,
+
+            .pVulkanFunctions = null,
+
+            .pRecordSettings = null,
+
+            .flags = 0,
+        };
+
+        if(vma.vmaCreateAllocator(&allocInfo, &self.vallocator) != VK_SUCCESS) {
+            return VulkanError.CreateAllocatorFailed;
+        }
+
+        try self.rendercore.init(self.allocator, &self.vallocator, false, self.gpu, self.window);
         
         try self.createSyncObjects();
     }
@@ -142,7 +175,9 @@ pub const VkBackend = struct {
             c.vkDestroyFence(self.gpu.device, self.in_flight_fences[i], null);
         }
 
-        self.allocator.free(self.in_flight_images);      
+        self.allocator.free(self.in_flight_images);
+
+        vma.vmaDestroyAllocator(self.vallocator);   
 
         self.gpu.deinit();  
 
@@ -153,7 +188,7 @@ pub const VkBackend = struct {
         _ = c.vkDeviceWaitIdle(self.gpu.device);
         self.rendercore.deinit(true);
 
-        try self.rendercore.init(self.allocator, true, self.gpu, self.window);
+        try self.rendercore.init(self.allocator, &self.vallocator, true, self.gpu, self.window);
     }
 
     pub fn render(self: *VkBackend) !void {

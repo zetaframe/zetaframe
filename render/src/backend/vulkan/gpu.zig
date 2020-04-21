@@ -44,6 +44,10 @@ pub const Gpu = struct {
     indices: QueueFamilyIndices,
 
     physical_device: c.VkPhysicalDevice,
+    properties: c.VkPhysicalDeviceProperties,
+    mem_properties: c.VkPhysicalDeviceMemoryProperties,
+    features: c.VkPhysicalDeviceFeatures,
+
     device: c.VkDevice,
     surface: c.VkSurfaceKHR,
 
@@ -60,6 +64,10 @@ pub const Gpu = struct {
             .indices = undefined,
 
             .physical_device = undefined,
+            .properties = undefined,
+            .mem_properties = undefined,
+            .features = undefined,
+
             .device = undefined,
             .surface = undefined,
 
@@ -124,6 +132,10 @@ pub const Gpu = struct {
         } else {
             self.physical_device = selectedDevice;
         }
+
+        c.vkGetPhysicalDeviceProperties(self.physical_device, &self.properties);
+        c.vkGetPhysicalDeviceMemoryProperties(self.physical_device, &self.mem_properties);
+        c.vkGetPhysicalDeviceFeatures(self.physical_device, &self.features);
     }
 
     fn createLogicalDevice(self: *Self) !void {

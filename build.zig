@@ -37,6 +37,9 @@ pub fn build(b: *Builder) void {
     tests.linkSystemLibrary("glfw");
     tests.linkSystemLibrary("vulkan");
 
+    tests.linkSystemLibrary("c++");
+    tests.addObjectFile("render/lib/vma/vma.o");
+
     const test_step = b.step("test", "Run All tests");
     test_step.dependOn(&tests.step);
 }

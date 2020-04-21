@@ -14,11 +14,15 @@ const Swapchain = @import("swapchain.zig").Swapchain;
 const c = @import("../../c2.zig");
 const VK_SUCCESS = c.enum_VkResult.VK_SUCCESS;
 
+const vma = @import("../../vma.zig");
+
 const Gpu = @import("gpu.zig").Gpu;
+const Buffer = @import("buffer.zig").Buffer;
 
 pub const Command = struct {
     const Self = @This();
     allocator: *Allocator,
+    vallocator: *vma.VmaAllocator,
 
     gpu: Gpu,
     extent: c.VkExtent2D,
@@ -26,12 +30,15 @@ pub const Command = struct {
     render_pass: c.VkRenderPass,
     pipeline: c.VkPipeline,
 
+    vertex_buffer: *Buffer,
+
     command_pool: c.VkCommandPool,
     command_buffers: []c.VkCommandBuffer,
 
-    pub fn new() Self {
+    pub fn new(vertexBuffer: *Buffer) Self {
         return Self{
             .allocator = undefined,
+            .vallocator = undefined,
 
             .gpu = undefined,
             .extent = undefined,
@@ -39,19 +46,24 @@ pub const Command = struct {
             .render_pass = undefined,
             .pipeline = undefined,
 
+            .vertex_buffer = vertexBuffer,
+
             .command_pool = undefined,
             .command_buffers = undefined,
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, gpu: Gpu, extent: c.VkExtent2D, framebuffers: []c.VkFramebuffer, renderPass: c.VkRenderPass, pipeline: c.VkPipeline) !void {
+    pub fn init(self: *Self, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu, extent: c.VkExtent2D, framebuffers: []c.VkFramebuffer, renderPass: c.VkRenderPass, pipeline: c.VkPipeline) !void {
         self.allocator = allocator;
+        self.vallocator = vallocator;
 
         self.gpu = gpu;
         self.extent = extent;
         self.framebuffers = framebuffers;
         self.render_pass = renderPass;
         self.pipeline = pipeline;
+
+        try self.vertex_buffer.init(self.allocator, self.vallocator, self.gpu);
 
         try self.createCommandPool();
         try self.createCommandBuffers();
@@ -60,6 +72,8 @@ pub const Command = struct {
     pub fn deinit(self: Self) void {
         c.vkFreeCommandBuffers(self.gpu.device, self.command_pool, @intCast(u32, self.command_buffers.len), self.command_buffers.ptr);
         self.allocator.free(self.command_buffers);
+
+        self.vertex_buffer.deinit();
 
         c.vkDestroyCommandPool(self.gpu.device, self.command_pool, null);
     }
@@ -157,7 +171,13 @@ pub const Command = struct {
             c.vkCmdBeginRenderPass(self.command_buffers[i], &renderPassInfo, c.enum_VkSubpassContents.VK_SUBPASS_CONTENTS_INLINE);
             {
                 c.vkCmdBindPipeline(self.command_buffers[i], c.enum_VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS, self.pipeline);
-                c.vkCmdDraw(self.command_buffers[i], 3, 1, 0, 0);
+
+                const vertexBuffers = [_]c.VkBuffer{self.vertex_buffer.buffer()};
+                const offsets = [_]u64{0};
+
+                c.vkCmdBindVertexBuffers(self.command_buffers[i], 0, 1, &vertexBuffers, &offsets);
+
+                c.vkCmdDraw(self.command_buffers[i], self.vertex_buffer.len(), 1, 0, 0);
             }
             c.vkCmdEndRenderPass(self.command_buffers[i]);
 
