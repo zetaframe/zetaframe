@@ -20,8 +20,8 @@ fn vulkan_backend() !void {
     try testWindow.init();
     defer testWindow.deinit();
 
-    var vert = try backend.Shader.init(std.heap.page_allocator, "/home/woze/projects/zig/gamedev/zetaframe/render/test/shaders/vulkan/vert.spv");
-    var frag = try backend.Shader.init(std.heap.page_allocator, "/home/woze/projects/zig/gamedev/zetaframe/render/test/shaders/vulkan/frag.spv");
+    var vert = try backend.Shader.init(std.heap.page_allocator, "render/test/shaders/vulkan/vert.spv");
+    var frag = try backend.Shader.init(std.heap.page_allocator, "render/test/shaders/vulkan/frag.spv");
 
     var swapchain = backend.vulkan.Swapchain.new();
     var renderpass = backend.vulkan.RenderPass.new();
