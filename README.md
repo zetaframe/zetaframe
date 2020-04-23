@@ -22,4 +22,4 @@ Will later include a system that can be added directly into `core`.
 
 ## License
 
-See [LICENSE.md](../blob/master/LICENSE.md)
+See [LICENSE.md](../master/LICENSE.md)
