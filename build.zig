@@ -27,7 +27,7 @@ pub fn build(b: *Builder) void {
     //Testing
     const tests = b.addTest("test.zig");
     tests.setBuildMode(mode);
-    
+
     tests.addPackage(corepkg);
     tests.addPackage(mathpkg);
     tests.addPackage(renderpkg);

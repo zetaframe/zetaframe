@@ -21,16 +21,18 @@ const deviceExtensions = [_][*c]const u8{c.VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 const QueueFamilyIndices = struct {
     graphics_family: ?u32,
     present_family: ?u32,
+    transfer_family: ?u32,
 
     fn init() QueueFamilyIndices {
         return QueueFamilyIndices{
             .graphics_family = null,
             .present_family = null,
+            .transfer_family = null,
         };
     }
 
     fn isComplete(self: QueueFamilyIndices) bool {
-        return self.graphics_family != null and self.present_family != null;
+        return self.graphics_family != null and self.present_family != null and self.transfer_family != null;
     }
 };
 
@@ -53,6 +55,10 @@ pub const Gpu = struct {
 
     graphics_queue: c.VkQueue,
     present_queue: c.VkQueue,
+    transfer_queue: c.VkQueue,
+
+    graphics_pool: c.VkCommandPool,
+    transfer_pool: c.VkCommandPool,
 
     pub fn new(instance: c.VkInstance, window: *windowing.Window) Self {
         return Self{
@@ -73,21 +79,31 @@ pub const Gpu = struct {
 
             .graphics_queue = undefined,
             .present_queue = undefined,
+            .transfer_queue = undefined,
+
+            .graphics_pool = undefined,
+            .transfer_pool = undefined,
         };
     }
 
     pub fn init(self: *Self, allocator: *Allocator) !void {
         self.allocator = allocator;
-        
+
         try self.createSurface();
         try self.pickPhysicalDevice();
 
         self.indices = try findQueueFamilies(self.allocator, self.physical_device, self.surface);
 
         try self.createLogicalDevice();
+
+        try self.createGraphicsPool();
+        try self.createTransferPool();
     }
 
     pub fn deinit(self: Self) void {
+        c.vkDestroyCommandPool(self.device, self.graphics_pool, null);
+        c.vkDestroyCommandPool(self.device, self.transfer_pool, null);
+
         c.vkDestroyDevice(self.device, null);
 
         c.vkDestroySurfaceKHR(self.instance, self.surface, null);
@@ -142,9 +158,20 @@ pub const Gpu = struct {
         var queueCreateInfos = std.ArrayList(c.VkDeviceQueueCreateInfo).init(self.allocator);
         defer queueCreateInfos.deinit();
 
-        const all_queue_families = [_]u32{ self.indices.graphics_family.?, self.indices.present_family.? };
-
-        const uniqueQueueFamilies = if (self.indices.graphics_family.? == self.indices.present_family.?) all_queue_families[0..1] else all_queue_families[0..2];
+        var uniqueQueueFamilies: []u32 = undefined;
+        if (self.indices.graphics_family.? == self.indices.present_family.?) {
+            if (self.indices.graphics_family.? == self.indices.transfer_family.?) {
+                uniqueQueueFamilies = &[_]u32{self.indices.graphics_family.?};
+            } else {
+                uniqueQueueFamilies = &[_]u32{ self.indices.graphics_family.?, self.indices.transfer_family.? };
+            }
+        } else {
+            if (self.indices.present_family.? == self.indices.transfer_family.?) {
+                uniqueQueueFamilies = &[_]u32{ self.indices.graphics_family.?, self.indices.present_family.? };
+            } else {
+                uniqueQueueFamilies = &[_]u32{ self.indices.graphics_family.?, self.indices.present_family.?, self.indices.transfer_family.? };
+            }
+        }
 
         var queuePriority: f32 = 1.0;
         for (uniqueQueueFamilies) |queueFamily| {
@@ -243,6 +270,41 @@ pub const Gpu = struct {
 
         c.vkGetDeviceQueue(self.device, self.indices.graphics_family.?, 0, &self.graphics_queue);
         c.vkGetDeviceQueue(self.device, self.indices.present_family.?, 0, &self.present_queue);
+        c.vkGetDeviceQueue(self.device, self.indices.transfer_family.?, 0, &self.transfer_queue);
+    }
+
+    fn createGraphicsPool(self: *Self) !void {
+        const indices = self.indices;
+
+        const poolInfo = c.VkCommandPoolCreateInfo{
+            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+
+            .queueFamilyIndex = indices.graphics_family.?,
+
+            .pNext = null,
+            .flags = 0,
+        };
+
+        if (c.vkCreateCommandPool(self.device, &poolInfo, null, &self.graphics_pool) != VK_SUCCESS) {
+            return VulkanError.CreateCommandPoolFailed;
+        }
+    }
+
+    fn createTransferPool(self: *Self) !void {
+        const indices = self.indices;
+
+        const poolInfo = c.VkCommandPoolCreateInfo{
+            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+
+            .queueFamilyIndex = indices.transfer_family.?,
+
+            .pNext = null,
+            .flags = 0,
+        };
+
+        if (c.vkCreateCommandPool(self.device, &poolInfo, null, &self.transfer_pool) != VK_SUCCESS) {
+            return VulkanError.CreateCommandPoolFailed;
+        }
     }
 };
 
@@ -336,13 +398,17 @@ fn findQueueFamilies(allocator: *Allocator, device: c.VkPhysicalDevice, surface:
 
         if (queueFamily.queueFlags & @intCast(u32, c.VK_QUEUE_GRAPHICS_BIT) != 0) {
             indices.graphics_family = i;
-        }
 
-        var presentSupport: u32 = 0;
-        if (c.vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport) != VK_SUCCESS) {
-            return error.Unexpected;
+            var presentSupport: u32 = 0;
+            if (c.vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport) != VK_SUCCESS) {
+                return error.Unexpected;
+            }
+            if (presentSupport != 0) {
+                indices.present_family = i;
+            }
+        } else if (queueFamily.queueFlags & @intCast(u32, c.VK_QUEUE_TRANSFER_BIT) != 0) {
+            indices.transfer_family = i;
         }
-        indices.present_family = i;
 
         if (indices.isComplete()) {
             break;

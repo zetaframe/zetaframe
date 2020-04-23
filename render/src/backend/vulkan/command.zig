@@ -32,7 +32,6 @@ pub const Command = struct {
 
     vertex_buffer: *Buffer,
 
-    command_pool: c.VkCommandPool,
     command_buffers: []c.VkCommandBuffer,
 
     pub fn new(vertexBuffer: *Buffer) Self {
@@ -48,7 +47,6 @@ pub const Command = struct {
 
             .vertex_buffer = vertexBuffer,
 
-            .command_pool = undefined,
             .command_buffers = undefined,
         };
     }
@@ -65,34 +63,14 @@ pub const Command = struct {
 
         try self.vertex_buffer.init(self.allocator, self.vallocator, self.gpu);
 
-        try self.createCommandPool();
         try self.createCommandBuffers();
     }
 
     pub fn deinit(self: Self) void {
-        c.vkFreeCommandBuffers(self.gpu.device, self.command_pool, @intCast(u32, self.command_buffers.len), self.command_buffers.ptr);
+        c.vkFreeCommandBuffers(self.gpu.device, self.gpu.graphics_pool, @intCast(u32, self.command_buffers.len), self.command_buffers.ptr);
         self.allocator.free(self.command_buffers);
 
         self.vertex_buffer.deinit();
-
-        c.vkDestroyCommandPool(self.gpu.device, self.command_pool, null);
-    }
-
-    fn createCommandPool(self: *Self) !void {
-        const indices = self.gpu.indices;
-
-        const poolInfo = c.VkCommandPoolCreateInfo{
-            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-
-            .queueFamilyIndex = indices.graphics_family.?,
-
-            .pNext = null,
-            .flags = 0,
-        };
-
-        if (c.vkCreateCommandPool(self.gpu.device, &poolInfo, null, &self.command_pool) != VK_SUCCESS) {
-            return VulkanError.CreateCommandPoolFailed;
-        }
     }
 
     fn createCommandBuffers(self: *Self) !void {
@@ -101,7 +79,7 @@ pub const Command = struct {
         const allocInfo = c.VkCommandBufferAllocateInfo{
             .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 
-            .commandPool = self.command_pool,
+            .commandPool = self.gpu.graphics_pool,
 
             .level = c.enum_VkCommandBufferLevel.VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 

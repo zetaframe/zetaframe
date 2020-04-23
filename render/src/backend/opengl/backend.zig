@@ -12,8 +12,8 @@ const c = @import("../../c2.zig");
 
 pub const GLError = enum{
     
-}
+};
 
 pub const GLBackend = struct {
     
-}
+};

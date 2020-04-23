@@ -74,7 +74,7 @@ pub const VulkanError = error{
 
     CreateAllocatorFailed,
 
-    BindMemoryFailed,
+    MapMemoryFailed,
 };
 
 const enableValidationLayers = std.debug.runtime_safety;
