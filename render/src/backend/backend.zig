@@ -21,7 +21,7 @@ pub const Shader = struct {
             .allocator = allocator,
 
             .shader_code = try std.fs.cwd().readFileAlloc(allocator, filepath, std.math.maxInt(u32)),
-            .shader_bytes = try std.fs.cwd().readFileAllocAligned(allocator, filepath, std.math.maxInt(u32), @alignOf(u32)),
+            .shader_bytes = try std.fs.cwd().readFileAllocOptions(allocator, filepath, std.math.maxInt(u32), @alignOf(u32), null),
         };
     }
 
