@@ -2,8 +2,10 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
-const c = @import("../../c2.zig");
-const VK_SUCCESS = c.enum_VkResult.VK_SUCCESS;
+const vk = @import("../../include/vk.zig");
+const VK_SUCCESS = vk.Result.SUCCESS;
+
+const glfw = @import("../../include/glfw.zig");
 
 const windowing = @import("../../windowing.zig");
 
@@ -15,8 +17,8 @@ const VulkanError = vkbackend.VulkanError;
 const swapchain = @import("swapchain.zig");
 
 const enableValidationLayers = std.debug.runtime_safety;
-const validationLayers = [_][*c]const u8{"VK_LAYER_LUNARG_standard_validation"};
-const deviceExtensions = [_][*c]const u8{c.VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+const validationLayers = [_][*:0]const u8{"VK_LAYER_LUNARG_standard_validation"};
+const deviceExtensions = [_][*:0]const u8{vk.KHR_SWAPCHAIN_EXTENSION_NAME};
 
 const QueueFamilyIndices = struct {
     graphics_family: ?u32,
@@ -40,27 +42,27 @@ pub const Gpu = struct {
     const Self = @This();
     allocator: *Allocator,
 
-    instance: c.VkInstance,
+    instance: vk.Instance,
     window: *windowing.Window,
 
     indices: QueueFamilyIndices,
 
-    physical_device: c.VkPhysicalDevice,
-    properties: c.VkPhysicalDeviceProperties,
-    mem_properties: c.VkPhysicalDeviceMemoryProperties,
-    features: c.VkPhysicalDeviceFeatures,
+    physical_device: vk.PhysicalDevice,
+    properties: vk.PhysicalDeviceProperties,
+    mem_properties: vk.PhysicalDeviceMemoryProperties,
+    features: vk.PhysicalDeviceFeatures,
 
-    device: c.VkDevice,
-    surface: c.VkSurfaceKHR,
+    device: vk.Device,
+    surface: vk.SurfaceKHR,
 
-    graphics_queue: c.VkQueue,
-    present_queue: c.VkQueue,
-    transfer_queue: c.VkQueue,
+    graphics_queue: vk.Queue,
+    present_queue: vk.Queue,
+    transfer_queue: vk.Queue,
 
-    graphics_pool: c.VkCommandPool,
-    transfer_pool: c.VkCommandPool,
+    graphics_pool: vk.CommandPool,
+    transfer_pool: vk.CommandPool,
 
-    pub fn new(instance: c.VkInstance, window: *windowing.Window) Self {
+    pub fn new(instance: vk.Instance, window: *windowing.Window) Self {
         return Self{
             .allocator = undefined,
 
@@ -101,37 +103,35 @@ pub const Gpu = struct {
     }
 
     pub fn deinit(self: Self) void {
-        c.vkDestroyCommandPool(self.device, self.graphics_pool, null);
-        c.vkDestroyCommandPool(self.device, self.transfer_pool, null);
+        vk.DestroyCommandPool(self.device, self.graphics_pool, null);
+        vk.DestroyCommandPool(self.device, self.transfer_pool, null);
 
-        c.vkDestroyDevice(self.device, null);
+        vk.DestroyDevice(self.device, null);
 
-        c.vkDestroySurfaceKHR(self.instance, self.surface, null);
+        vk.DestroySurfaceKHR(self.instance, self.surface, null);
     }
 
     fn createSurface(self: *Self) !void {
-        if (c.glfwCreateWindowSurface(self.instance, self.window.window, null, &self.surface) != VK_SUCCESS) {
+        if (glfw.glfwCreateWindowSurface(self.instance, self.window.window, null, &self.surface) != VK_SUCCESS) {
             return VulkanError.CreateSurfaceFailed;
         }
     }
 
     fn pickPhysicalDevice(self: *Self) !void {
         var deviceCount: u32 = 0;
-        if (c.vkEnumeratePhysicalDevices(self.instance, &deviceCount, null) != VK_SUCCESS) {
+        if (vk.vkEnumeratePhysicalDevices(self.instance, &deviceCount, null) != VK_SUCCESS) {
             return VulkanError.DeviceEnumerationFailed;
         }
         if (deviceCount == 0) {
             return VulkanError.NoValidDevices;
         }
 
-        const devices = try self.allocator.alloc(c.VkPhysicalDevice, deviceCount);
+        const devices = try self.allocator.alloc(vk.PhysicalDevice, deviceCount);
         defer self.allocator.free(devices);
-        if (c.vkEnumeratePhysicalDevices(self.instance, &deviceCount, devices.ptr) != VK_SUCCESS) {
-            return VulkanError.DeviceEnumerationFailed;
-        }
+        _ = try vk.EnumeratePhysicalDevices(self.instance, devices);
 
         var deviceSelected = false;
-        var selectedDevice: c.VkPhysicalDevice = undefined;
+        var selectedDevice: vk.PhysicalDevice = undefined;
         var selectedDeviceScore: u32 = 0;
 
         for (devices) |device| {
@@ -149,13 +149,13 @@ pub const Gpu = struct {
             self.physical_device = selectedDevice;
         }
 
-        c.vkGetPhysicalDeviceProperties(self.physical_device, &self.properties);
-        c.vkGetPhysicalDeviceMemoryProperties(self.physical_device, &self.mem_properties);
-        c.vkGetPhysicalDeviceFeatures(self.physical_device, &self.features);
+        self.properties = vk.GetPhysicalDeviceProperties(self.physical_device);
+        self.mem_properties = vk.GetPhysicalDeviceMemoryProperties(self.physical_device);
+        self.features = vk.GetPhysicalDeviceFeatures(self.physical_device);
     }
 
     fn createLogicalDevice(self: *Self) !void {
-        var queueCreateInfos = std.ArrayList(c.VkDeviceQueueCreateInfo).init(self.allocator);
+        var queueCreateInfos = std.ArrayList(vk.DeviceQueueCreateInfo).init(self.allocator);
         defer queueCreateInfos.deinit();
 
         var uniqueQueueFamilies: []u32 = undefined;
@@ -175,20 +175,15 @@ pub const Gpu = struct {
 
         var queuePriority: f32 = 1.0;
         for (uniqueQueueFamilies) |queueFamily| {
-            const queueCreateInfo = c.VkDeviceQueueCreateInfo{
-                .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-
+            const queueCreateInfo = vk.DeviceQueueCreateInfo{
                 .queueFamilyIndex = queueFamily,
                 .queueCount = 1,
-                .pQueuePriorities = &queuePriority,
-
-                .pNext = null,
-                .flags = 0,
+                .pQueuePriorities = &[_]f32{queuePriority},
             };
             try queueCreateInfos.append(queueCreateInfo);
         }
 
-        const deviceFeatures = c.VkPhysicalDeviceFeatures{
+        const deviceFeatures = vk.PhysicalDeviceFeatures{
             .robustBufferAccess = 0,
             .fullDrawIndexUint32 = 0,
             .imageCubeArray = 0,
@@ -246,9 +241,7 @@ pub const Gpu = struct {
             .inheritedQueries = 0,
         };
 
-        const createInfo = c.VkDeviceCreateInfo{
-            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-
+        const createInfo = vk.DeviceCreateInfo{
             .queueCreateInfoCount = @intCast(u32, queueCreateInfos.items.len),
             .pQueueCreateInfos = queueCreateInfos.items.ptr,
 
@@ -259,66 +252,44 @@ pub const Gpu = struct {
 
             .enabledLayerCount = if (enableValidationLayers) @intCast(u32, validationLayers.len) else 0,
             .ppEnabledLayerNames = if (enableValidationLayers) &validationLayers else null,
-
-            .pNext = null,
-            .flags = 0,
         };
 
-        if (c.vkCreateDevice(self.physical_device, &createInfo, null, &self.device) != VK_SUCCESS) {
-            return VulkanError.CreateDeviceFailed;
-        }
+        self.device = try vk.CreateDevice(self.physical_device, createInfo, null);
 
-        c.vkGetDeviceQueue(self.device, self.indices.graphics_family.?, 0, &self.graphics_queue);
-        c.vkGetDeviceQueue(self.device, self.indices.present_family.?, 0, &self.present_queue);
-        c.vkGetDeviceQueue(self.device, self.indices.transfer_family.?, 0, &self.transfer_queue);
+        self.graphics_queue = vk.GetDeviceQueue(self.device, self.indices.graphics_family.?, 0);
+        self.present_queue = vk.GetDeviceQueue(self.device, self.indices.present_family.?, 0);
+        self.transfer_queue = vk.GetDeviceQueue(self.device, self.indices.transfer_family.?, 0);
     }
 
     fn createGraphicsPool(self: *Self) !void {
         const indices = self.indices;
 
-        const poolInfo = c.VkCommandPoolCreateInfo{
-            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-
+        const poolInfo = vk.CommandPoolCreateInfo{
             .queueFamilyIndex = indices.graphics_family.?,
-
-            .pNext = null,
-            .flags = 0,
         };
 
-        if (c.vkCreateCommandPool(self.device, &poolInfo, null, &self.graphics_pool) != VK_SUCCESS) {
-            return VulkanError.CreateCommandPoolFailed;
-        }
+        self.graphics_pool = try vk.CreateCommandPool(self.device, poolInfo, null);
     }
 
     fn createTransferPool(self: *Self) !void {
         const indices = self.indices;
 
-        const poolInfo = c.VkCommandPoolCreateInfo{
-            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-
+        const poolInfo = vk.CommandPoolCreateInfo{
             .queueFamilyIndex = indices.transfer_family.?,
-
-            .pNext = null,
-            .flags = 0,
         };
 
-        if (c.vkCreateCommandPool(self.device, &poolInfo, null, &self.transfer_pool) != VK_SUCCESS) {
-            return VulkanError.CreateCommandPoolFailed;
-        }
+        self.transfer_pool = try vk.CreateCommandPool(self.device, poolInfo, null);
     }
 };
 
-fn calculateDeviceScore(allocator: *Allocator, device: c.VkPhysicalDevice, surface: c.VkSurfaceKHR) !u32 {
-    var deviceProperties: c.VkPhysicalDeviceProperties = undefined;
-    var deviceMemProperties: c.VkPhysicalDeviceMemoryProperties = undefined;
-    var deviceFeatures: c.VkPhysicalDeviceFeatures = undefined;
-    c.vkGetPhysicalDeviceProperties(device, &deviceProperties);
-    c.vkGetPhysicalDeviceMemoryProperties(device, &deviceMemProperties);
-    c.vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+fn calculateDeviceScore(allocator: *Allocator, device: vk.PhysicalDevice, surface: vk.SurfaceKHR) !u32 {
+    var deviceProperties: vk.PhysicalDeviceProperties = vk.GetPhysicalDeviceProperties(device);
+    var deviceMemProperties: vk.PhysicalDeviceMemoryProperties = vk.GetPhysicalDeviceMemoryProperties(device);
+    var deviceFeatures: vk.PhysicalDeviceFeatures = vk.GetPhysicalDeviceFeatures(device);
 
     var score: u32 = 0;
 
-    if (deviceProperties.deviceType == c.enum_VkPhysicalDeviceType.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+    if (deviceProperties.deviceType == .DISCRETE_GPU) {
         score += 4200;
     }
 
@@ -350,17 +321,12 @@ fn calculateDeviceScore(allocator: *Allocator, device: c.VkPhysicalDevice, surfa
     return score;
 }
 
-fn checkDeviceExtensionSupport(allocator: *Allocator, device: c.VkPhysicalDevice) !bool {
-    var extensionCount: u32 = 0;
-    if (c.vkEnumerateDeviceExtensionProperties(device, null, &extensionCount, null) != VK_SUCCESS) {
-        return VulkanError.ExtensionEnumerationFailed;
-    }
+fn checkDeviceExtensionSupport(allocator: *Allocator, device: vk.PhysicalDevice) !bool {
+    var extensionCount = try vk.EnumerateDeviceExtensionPropertiesCount(device, null);
 
-    const availableExtensions = try allocator.alloc(c.VkExtensionProperties, extensionCount);
+    const availableExtensions = try allocator.alloc(vk.ExtensionProperties, extensionCount);
     defer allocator.free(availableExtensions);
-    if (c.vkEnumerateDeviceExtensionProperties(device, null, &extensionCount, availableExtensions.ptr) != VK_SUCCESS) {
-        return VulkanError.ExtensionEnumerationFailed;
-    }
+    _ = try vk.EnumerateDeviceExtensionProperties(device, null, availableExtensions);
 
     for (deviceExtensions) |deviceExt| {
         var extensionFound = false;
@@ -380,15 +346,14 @@ fn checkDeviceExtensionSupport(allocator: *Allocator, device: c.VkPhysicalDevice
     return true;
 }
 
-fn findQueueFamilies(allocator: *Allocator, device: c.VkPhysicalDevice, surface: c.VkSurfaceKHR) !QueueFamilyIndices {
+fn findQueueFamilies(allocator: *Allocator, device: vk.PhysicalDevice, surface: vk.SurfaceKHR) !QueueFamilyIndices {
     var indices = QueueFamilyIndices.init();
 
-    var queueFamilyCount: u32 = 0;
-    c.vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, null);
+    var queueFamilyCount = vk.GetPhysicalDeviceQueueFamilyPropertiesCount(device);
 
-    const queueFamilies = try allocator.alloc(c.VkQueueFamilyProperties, queueFamilyCount);
+    const queueFamilies = try allocator.alloc(vk.QueueFamilyProperties, queueFamilyCount);
     defer allocator.free(queueFamilies);
-    c.vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.ptr);
+    _ = vk.GetPhysicalDeviceQueueFamilyProperties(device, queueFamilies);
 
     var i: u32 = 0;
     for (queueFamilies) |queueFamily| {
@@ -396,18 +361,15 @@ fn findQueueFamilies(allocator: *Allocator, device: c.VkPhysicalDevice, surface:
             continue;
         }
 
-        if (queueFamily.queueFlags & @intCast(u32, c.VK_QUEUE_GRAPHICS_BIT) != 0) {
+        if (queueFamily.queueFlags.graphics) {
             indices.graphics_family = i;
-
-            var presentSupport: u32 = 0;
-            if (c.vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport) != VK_SUCCESS) {
-                return error.Unexpected;
-            }
-            if (presentSupport != 0) {
-                indices.present_family = i;
-            }
-        } else if (queueFamily.queueFlags & @intCast(u32, c.VK_QUEUE_TRANSFER_BIT) != 0) {
+        } 
+        if (queueFamily.queueFlags.transfer) {
             indices.transfer_family = i;
+        }
+
+        if ((try vk.GetPhysicalDeviceSurfaceSupportKHR(device, i, surface)) != 0) {
+            indices.present_family = i;
         }
 
         if (indices.isComplete()) {

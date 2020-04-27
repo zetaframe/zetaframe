@@ -1,9 +1,9 @@
-const c = @import("c2.zig");
+const vk = @import("vk.zig");
 
 pub const struct_VmaAllocator_T = @OpaqueType();
 pub const VmaAllocator = ?*struct_VmaAllocator_T;
-pub const PFN_vmaAllocateDeviceMemoryFunction = ?fn (VmaAllocator, u32, c.VkDeviceMemory, c.VkDeviceSize, ?*c_void) callconv(.C) void;
-pub const PFN_vmaFreeDeviceMemoryFunction = ?fn (VmaAllocator, u32, c.VkDeviceMemory, c.VkDeviceSize, ?*c_void) callconv(.C) void;
+pub const PFN_vmaAllocateDeviceMemoryFunction = ?fn (VmaAllocator, u32, vk.DeviceMemory, vk.DeviceSize, ?*c_void) callconv(.C) void;
+pub const PFN_vmaFreeDeviceMemoryFunction = ?fn (VmaAllocator, u32, vk.DeviceMemory, vk.DeviceSize, ?*c_void) callconv(.C) void;
 pub const struct_VmaDeviceMemoryCallbacks = extern struct {
     pfnAllocate: PFN_vmaAllocateDeviceMemoryFunction,
     pfnFree: PFN_vmaFreeDeviceMemoryFunction,
@@ -28,30 +28,30 @@ pub const enum_VmaAllocatorCreateFlagBits = extern enum(c_int) {
     _,
 };
 pub const VmaAllocatorCreateFlagBits = enum_VmaAllocatorCreateFlagBits;
-pub const VmaAllocatorCreateFlags = c.VkFlags;
+pub const VmaAllocatorCreateFlags = vk.Flags;
 pub const struct_VmaVulkanFunctions = extern struct {
-    vkGetPhysicalDeviceProperties: c.PFN_vkGetPhysicalDeviceProperties,
-    vkGetPhysicalDeviceMemoryProperties: c.PFN_vkGetPhysicalDeviceMemoryProperties,
-    vkAllocateMemory: c.PFN_vkAllocateMemory,
-    vkFreeMemory: c.PFN_vkFreeMemory,
-    vkMapMemory: c.PFN_vkMapMemory,
-    vkUnmapMemory: c.PFN_vkUnmapMemory,
-    vkFlushMappedMemoryRanges: c.PFN_vkFlushMappedMemoryRanges,
-    vkInvalidateMappedMemoryRanges: c.PFN_vkInvalidateMappedMemoryRanges,
-    vkBindBufferMemory: c.PFN_vkBindBufferMemory,
-    vkBindImageMemory: c.PFN_vkBindImageMemory,
-    vkGetBufferMemoryRequirements: c.PFN_vkGetBufferMemoryRequirements,
-    vkGetImageMemoryRequirements: c.PFN_vkGetImageMemoryRequirements,
-    vkCreateBuffer: c.PFN_vkCreateBuffer,
-    vkDestroyBuffer: c.PFN_vkDestroyBuffer,
-    vkCreateImage: c.PFN_vkCreateImage,
-    vkDestroyImage: c.PFN_vkDestroyImage,
-    vkCmdCopyBuffer: c.PFN_vkCmdCopyBuffer,
-    vkGetBufferMemoryRequirements2KHR: c.PFN_vkGetBufferMemoryRequirements2KHR,
-    vkGetImageMemoryRequirements2KHR: c.PFN_vkGetImageMemoryRequirements2KHR,
-    vkBindBufferMemory2KHR: c.PFN_vkBindBufferMemory2KHR,
-    vkBindImageMemory2KHR: c.PFN_vkBindImageMemory2KHR,
-    vkGetPhysicalDeviceMemoryProperties2KHR: c.PFN_vkGetPhysicalDeviceMemoryProperties2KHR,
+    vkGetPhysicalDeviceProperties: @TypeOf(vk.vkGetPhysicalDeviceProperties),
+    vkGetPhysicalDeviceMemoryProperties: @TypeOf(vk.vkGetPhysicalDeviceMemoryProperties),
+    vkAllocateMemory: @TypeOf(vk.vkAllocateMemory),
+    vkFreeMemory: @TypeOf(vk.vkFreeMemory),
+    vkMapMemory: @TypeOf(vk.vkMapMemory),
+    vkUnmapMemory: @TypeOf(vk.vkUnmapMemory),
+    vkFlushMappedMemoryRanges: @TypeOf(vk.vkFlushMappedMemoryRanges),
+    vkInvalidateMappedMemoryRanges: @TypeOf(vk.vkInvalidateMappedMemoryRanges),
+    vkBindBufferMemory: @TypeOf(vk.vkBindBufferMemory),
+    vkBindImageMemory: @TypeOf(vk.vkBindImageMemory),
+    vkGetBufferMemoryRequirements: @TypeOf(vk.vkGetBufferMemoryRequirements),
+    vkGetImageMemoryRequirements: @TypeOf(vk.vkGetImageMemoryRequirements),
+    vkCreateBuffer: @TypeOf(vk.vkCreateBuffer),
+    vkDestroyBuffer: @TypeOf(vk.vkDestroyBuffer),
+    vkCreateImage: @TypeOf(vk.vkCreateImage),
+    vkDestroyImage: @TypeOf(vk.vkDestroyImage),
+    vkCmdCopyBuffer: @TypeOf(vk.vkCmdCopyBuffer),
+    vkGetBufferMemoryRequirements2KHR: @TypeOf(vk.vkGetBufferMemoryRequirements2KHR),
+    vkGetImageMemoryRequirements2KHR: @TypeOf(vk.vkGetImageMemoryRequirements2KHR),
+    vkBindBufferMemory2KHR: @TypeOf(vk.vkBindBufferMemory2KHR),
+    vkBindImageMemory2KHR: @TypeOf(vk.vkBindImageMemory2KHR),
+    vkGetPhysicalDeviceMemoryProperties2KHR: @TypeOf(vk.vkGetPhysicalDeviceMemoryProperties2KHR),
 };
 pub const VmaVulkanFunctions = struct_VmaVulkanFunctions;
 pub const VMA_RECORD_FLUSH_AFTER_CALL_BIT = @enumToInt(enum_VmaRecordFlagBits.VMA_RECORD_FLUSH_AFTER_CALL_BIT);
@@ -62,7 +62,7 @@ pub const enum_VmaRecordFlagBits = extern enum(c_int) {
     _,
 };
 pub const VmaRecordFlagBits = enum_VmaRecordFlagBits;
-pub const VmaRecordFlags = c.VkFlags;
+pub const VmaRecordFlags = vk.Flags;
 pub const struct_VmaRecordSettings = extern struct {
     flags: VmaRecordFlags,
     pFilePath: [*c]const u8,
@@ -70,44 +70,44 @@ pub const struct_VmaRecordSettings = extern struct {
 pub const VmaRecordSettings = struct_VmaRecordSettings;
 pub const struct_VmaAllocatorCreateInfo = extern struct {
     flags: VmaAllocatorCreateFlags,
-    physicalDevice: c.VkPhysicalDevice,
-    device: c.VkDevice,
-    preferredLargeHeapBlockSize: c.VkDeviceSize,
-    pAllocationCallbacks: [*c]const c.VkAllocationCallbacks,
+    physicalDevice: vk.PhysicalDevice,
+    device: vk.Device,
+    preferredLargeHeapBlockSize: vk.DeviceSize,
+    pAllocationCallbacks: [*c]const vk.AllocationCallbacks,
     pDeviceMemoryCallbacks: [*c]const VmaDeviceMemoryCallbacks,
     frameInUseCount: u32,
-    pHeapSizeLimit: [*c]const c.VkDeviceSize,
+    pHeapSizeLimit: [*c]const vk.DeviceSize,
     pVulkanFunctions: [*c]const VmaVulkanFunctions,
     pRecordSettings: [*c]const VmaRecordSettings,
-    instance: c.VkInstance,
+    instance: vk.Instance,
     vulkanApiVersion: u32,
 };
 pub const VmaAllocatorCreateInfo = struct_VmaAllocatorCreateInfo;
-pub extern fn vmaCreateAllocator(pCreateInfo: [*c]const VmaAllocatorCreateInfo, pAllocator: [*c]VmaAllocator) c.VkResult;
+pub extern fn vmaCreateAllocator(pCreateInfo: [*c]const VmaAllocatorCreateInfo, pAllocator: [*c]VmaAllocator) vk.Result;
 pub extern fn vmaDestroyAllocator(allocator: VmaAllocator) void;
 pub const struct_VmaAllocatorInfo = extern struct {
-    instance: c.VkInstance,
-    physicalDevice: c.VkPhysicalDevice,
-    device: c.VkDevice,
+    instance: vk.Instance,
+    physicalDevice: vk.PhysicalDevice,
+    device: vk.Device,
 };
 pub const VmaAllocatorInfo = struct_VmaAllocatorInfo;
 pub extern fn vmaGetAllocatorInfo(allocator: VmaAllocator, pAllocatorInfo: [*c]VmaAllocatorInfo) void;
-pub extern fn vmaGetPhysicalDeviceProperties(allocator: VmaAllocator, ppPhysicalDeviceProperties: [*c][*c]const c.VkPhysicalDeviceProperties) void;
-pub extern fn vmaGetMemoryProperties(allocator: VmaAllocator, ppPhysicalDeviceMemoryProperties: [*c][*c]const c.VkPhysicalDeviceMemoryProperties) void;
-pub extern fn vmaGetMemoryTypeProperties(allocator: VmaAllocator, memoryTypeIndex: u32, pFlags: [*c]c.VkMemoryPropertyFlags) void;
+pub extern fn vmaGetPhysicalDeviceProperties(allocator: VmaAllocator, ppPhysicalDeviceProperties: [*c][*c]const vk.PhysicalDeviceProperties) void;
+pub extern fn vmaGetMemoryProperties(allocator: VmaAllocator, ppPhysicalDeviceMemoryProperties: [*c][*c]const vk.PhysicalDeviceMemoryProperties) void;
+pub extern fn vmaGetMemoryTypeProperties(allocator: VmaAllocator, memoryTypeIndex: u32, pFlags: [*c]vk.MemoryPropertyFlags) void;
 pub extern fn vmaSetCurrentFrameIndex(allocator: VmaAllocator, frameIndex: u32) void;
 pub const struct_VmaStatInfo = extern struct {
     blockCount: u32,
     allocationCount: u32,
     unusedRangeCount: u32,
-    usedBytes: c.VkDeviceSize,
-    unusedBytes: c.VkDeviceSize,
-    allocationSizeMin: c.VkDeviceSize,
-    allocationSizeAvg: c.VkDeviceSize,
-    allocationSizeMax: c.VkDeviceSize,
-    unusedRangeSizeMin: c.VkDeviceSize,
-    unusedRangeSizeAvg: c.VkDeviceSize,
-    unusedRangeSizeMax: c.VkDeviceSize,
+    usedBytes: vk.DeviceSize,
+    unusedBytes: vk.DeviceSize,
+    allocationSizeMin: vk.DeviceSize,
+    allocationSizeAvg: vk.DeviceSize,
+    allocationSizeMax: vk.DeviceSize,
+    unusedRangeSizeMin: vk.DeviceSize,
+    unusedRangeSizeAvg: vk.DeviceSize,
+    unusedRangeSizeMax: vk.DeviceSize,
 };
 pub const VmaStatInfo = struct_VmaStatInfo;
 pub const struct_VmaStats = extern struct {
@@ -118,14 +118,14 @@ pub const struct_VmaStats = extern struct {
 pub const VmaStats = struct_VmaStats;
 pub extern fn vmaCalculateStats(allocator: VmaAllocator, pStats: [*c]VmaStats) void;
 pub const struct_VmaBudget = extern struct {
-    blockBytes: c.VkDeviceSize,
-    allocationBytes: c.VkDeviceSize,
-    usage: c.VkDeviceSize,
-    budget: c.VkDeviceSize,
+    blockBytes: vk.DeviceSize,
+    allocationBytes: vk.DeviceSize,
+    usage: vk.DeviceSize,
+    budget: vk.DeviceSize,
 };
 pub const VmaBudget = struct_VmaBudget;
 pub extern fn vmaGetBudget(allocator: VmaAllocator, pBudget: [*c]VmaBudget) void;
-pub extern fn vmaBuildStatsString(allocator: VmaAllocator, ppStatsString: [*c][*c]u8, detailedMap: c.VkBool32) void;
+pub extern fn vmaBuildStatsString(allocator: VmaAllocator, ppStatsString: [*c][*c]u8, detailedMap: vk.Bool32) void;
 pub extern fn vmaFreeStatsString(allocator: VmaAllocator, pStatsString: [*c]u8) void;
 pub const struct_VmaPool_T = @OpaqueType();
 pub const VmaPool = ?*struct_VmaPool_T;
@@ -187,20 +187,20 @@ pub const enum_VmaAllocationCreateFlagBits = extern enum(c_int) {
     _,
 };
 pub const VmaAllocationCreateFlagBits = enum_VmaAllocationCreateFlagBits;
-pub const VmaAllocationCreateFlags = c.VkFlags;
+pub const VmaAllocationCreateFlags = vk.Flags;
 pub const struct_VmaAllocationCreateInfo = extern struct {
     flags: VmaAllocationCreateFlags,
     usage: VmaMemoryUsage,
-    requiredFlags: c.VkMemoryPropertyFlags,
-    preferredFlags: c.VkMemoryPropertyFlags,
+    requiredFlags: vk.MemoryPropertyFlags,
+    preferredFlags: vk.MemoryPropertyFlags,
     memoryTypeBits: u32,
     pool: VmaPool,
     pUserData: ?*c_void,
 };
 pub const VmaAllocationCreateInfo = struct_VmaAllocationCreateInfo;
-pub extern fn vmaFindMemoryTypeIndex(allocator: VmaAllocator, memoryTypeBits: u32, pAllocationCreateInfo: [*c]const VmaAllocationCreateInfo, pMemoryTypeIndex: [*c]u32) c.VkResult;
-pub extern fn vmaFindMemoryTypeIndexForBufferInfo(allocator: VmaAllocator, pBufferCreateInfo: [*c]const VkBufferCreateInfo, pAllocationCreateInfo: [*c]const VmaAllocationCreateInfo, pMemoryTypeIndex: [*c]u32) c.VkResult;
-pub extern fn vmaFindMemoryTypeIndexForImageInfo(allocator: VmaAllocator, pImageCreateInfo: [*c]const VkImageCreateInfo, pAllocationCreateInfo: [*c]const VmaAllocationCreateInfo, pMemoryTypeIndex: [*c]u32) c.VkResult;
+pub extern fn vmaFindMemoryTypeIndex(allocator: VmaAllocator, memoryTypeBits: u32, pAllocationCreateInfo: [*c]const VmaAllocationCreateInfo, pMemoryTypeIndex: [*c]u32) vk.Result;
+pub extern fn vmaFindMemoryTypeIndexForBufferInfo(allocator: VmaAllocator, pBufferCreateInfo: [*c]const BufferCreateInfo, pAllocationCreateInfo: [*c]const VmaAllocationCreateInfo, pMemoryTypeIndex: [*c]u32) vk.Result;
+pub extern fn vmaFindMemoryTypeIndexForImageInfo(allocator: VmaAllocator, pImageCreateInfo: [*c]const ImageCreateInfo, pAllocationCreateInfo: [*c]const VmaAllocationCreateInfo, pMemoryTypeIndex: [*c]u32) vk.Result;
 pub const VMA_POOL_CREATE_IGNORE_BUFFER_IMAGE_GRANULARITY_BIT = @enumToInt(enum_VmaPoolCreateFlagBits.VMA_POOL_CREATE_IGNORE_BUFFER_IMAGE_GRANULARITY_BIT);
 pub const VMA_POOL_CREATE_LINEAR_ALGORITHM_BIT = @enumToInt(enum_VmaPoolCreateFlagBits.VMA_POOL_CREATE_LINEAR_ALGORITHM_BIT);
 pub const VMA_POOL_CREATE_BUDDY_ALGORITHM_BIT = @enumToInt(enum_VmaPoolCreateFlagBits.VMA_POOL_CREATE_BUDDY_ALGORITHM_BIT);
@@ -215,61 +215,61 @@ pub const enum_VmaPoolCreateFlagBits = extern enum(c_int) {
     _,
 };
 pub const VmaPoolCreateFlagBits = enum_VmaPoolCreateFlagBits;
-pub const VmaPoolCreateFlags = c.VkFlags;
+pub const VmaPoolCreateFlags = vk.Flags;
 pub const struct_VmaPoolCreateInfo = extern struct {
     memoryTypeIndex: u32,
     flags: VmaPoolCreateFlags,
-    blockSize: c.VkDeviceSize,
+    blockSize: vk.DeviceSize,
     minBlockCount: usize,
     maxBlockCount: usize,
     frameInUseCount: u32,
 };
 pub const VmaPoolCreateInfo = struct_VmaPoolCreateInfo;
 pub const struct_VmaPoolStats = extern struct {
-    size: c.VkDeviceSize,
-    unusedSize: c.VkDeviceSize,
+    size: vk.DeviceSize,
+    unusedSize: vk.DeviceSize,
     allocationCount: usize,
     unusedRangeCount: usize,
-    unusedRangeSizeMax: c.VkDeviceSize,
+    unusedRangeSizeMax: vk.DeviceSize,
     blockCount: usize,
 };
 pub const VmaPoolStats = struct_VmaPoolStats;
-pub extern fn vmaCreatePool(allocator: VmaAllocator, pCreateInfo: [*c]const VmaPoolCreateInfo, pPool: [*c]VmaPool) c.VkResult;
+pub extern fn vmaCreatePool(allocator: VmaAllocator, pCreateInfo: [*c]const VmaPoolCreateInfo, pPool: [*c]VmaPool) vk.Result;
 pub extern fn vmaDestroyPool(allocator: VmaAllocator, pool: VmaPool) void;
 pub extern fn vmaGetPoolStats(allocator: VmaAllocator, pool: VmaPool, pPoolStats: [*c]VmaPoolStats) void;
 pub extern fn vmaMakePoolAllocationsLost(allocator: VmaAllocator, pool: VmaPool, pLostAllocationCount: [*c]usize) void;
-pub extern fn vmaCheckPoolCorruption(allocator: VmaAllocator, pool: VmaPool) c.VkResult;
+pub extern fn vmaCheckPoolCorruption(allocator: VmaAllocator, pool: VmaPool) vk.Result;
 pub extern fn vmaGetPoolName(allocator: VmaAllocator, pool: VmaPool, ppName: [*c][*c]const u8) void;
 pub extern fn vmaSetPoolName(allocator: VmaAllocator, pool: VmaPool, pName: [*c]const u8) void;
 pub const struct_VmaAllocation_T = @OpaqueType();
 pub const VmaAllocation = ?*struct_VmaAllocation_T;
 pub const struct_VmaAllocationInfo = extern struct {
     memoryType: u32,
-    deviceMemory: c.VkDeviceMemory,
-    offset: c.VkDeviceSize,
-    size: c.VkDeviceSize,
+    deviceMemory: vk.DeviceMemory,
+    offset: vk.DeviceSize,
+    size: vk.DeviceSize,
     pMappedData: ?*c_void,
     pUserData: ?*c_void,
 };
 pub const VmaAllocationInfo = struct_VmaAllocationInfo;
-pub extern fn vmaAllocateMemory(allocator: VmaAllocator, pVkMemoryRequirements: [*c]const c.VkMemoryRequirements, pCreateInfo: [*c]const VmaAllocationCreateInfo, pAllocation: [*c]VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) c.VkResult;
-pub extern fn vmaAllocateMemoryPages(allocator: VmaAllocator, pVkMemoryRequirements: [*c]const c.VkMemoryRequirements, pCreateInfo: [*c]const VmaAllocationCreateInfo, allocationCount: usize, pAllocations: [*c]VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) c.VkResult;
-pub extern fn vmaAllocateMemoryForBuffer(allocator: VmaAllocator, buffer: c.VkBuffer, pCreateInfo: [*c]const VmaAllocationCreateInfo, pAllocation: [*c]VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) c.VkResult;
-pub extern fn vmaAllocateMemoryForImage(allocator: VmaAllocator, image: c.VkImage, pCreateInfo: [*c]const VmaAllocationCreateInfo, pAllocation: [*c]VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) c.VkResult;
+pub extern fn vmaAllocateMemory(allocator: VmaAllocator, pVkMemoryRequirements: [*c]const vk.MemoryRequirements, pCreateInfo: [*c]const VmaAllocationCreateInfo, pAllocation: [*c]VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) vk.Result;
+pub extern fn vmaAllocateMemoryPages(allocator: VmaAllocator, pVkMemoryRequirements: [*c]const vk.MemoryRequirements, pCreateInfo: [*c]const VmaAllocationCreateInfo, allocationCount: usize, pAllocations: [*c]VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) vk.Result;
+pub extern fn vmaAllocateMemoryForBuffer(allocator: VmaAllocator, buffer: vk.Buffer, pCreateInfo: [*c]const VmaAllocationCreateInfo, pAllocation: [*c]VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) vk.Result;
+pub extern fn vmaAllocateMemoryForImage(allocator: VmaAllocator, image: vk.Image, pCreateInfo: [*c]const VmaAllocationCreateInfo, pAllocation: [*c]VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) vk.Result;
 pub extern fn vmaFreeMemory(allocator: VmaAllocator, allocation: VmaAllocation) void;
 pub extern fn vmaFreeMemoryPages(allocator: VmaAllocator, allocationCount: usize, pAllocations: [*c]const VmaAllocation) void;
-pub extern fn vmaResizeAllocation(allocator: VmaAllocator, allocation: VmaAllocation, newSize: c.VkDeviceSize) c.VkResult;
+pub extern fn vmaResizeAllocation(allocator: VmaAllocator, allocation: VmaAllocation, newSize: vk.DeviceSize) vk.Result;
 pub extern fn vmaGetAllocationInfo(allocator: VmaAllocator, allocation: VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) void;
-pub extern fn vmaTouchAllocation(allocator: VmaAllocator, allocation: VmaAllocation) c.VkBool32;
+pub extern fn vmaTouchAllocation(allocator: VmaAllocator, allocation: VmaAllocation) vk.Bool32;
 pub extern fn vmaSetAllocationUserData(allocator: VmaAllocator, allocation: VmaAllocation, pUserData: ?*c_void) void;
 pub extern fn vmaCreateLostAllocation(allocator: VmaAllocator, pAllocation: [*c]VmaAllocation) void;
-pub extern fn vmaMapMemory(allocator: VmaAllocator, allocation: VmaAllocation, ppData: [*c]?*c_void) c.VkResult;
+pub extern fn vmaMapMemory(allocator: VmaAllocator, allocation: VmaAllocation, ppData: [*c]?*c_void) vk.Result;
 pub extern fn vmaUnmapMemory(allocator: VmaAllocator, allocation: VmaAllocation) void;
-pub extern fn vmaFlushAllocation(allocator: VmaAllocator, allocation: VmaAllocation, offset: c.VkDeviceSize, size: c.VkDeviceSize) c.VkResult;
-pub extern fn vmaInvalidateAllocation(allocator: VmaAllocator, allocation: VmaAllocation, offset: c.VkDeviceSize, size: c.VkDeviceSize) c.VkResult;
-pub extern fn vmaFlushAllocations(allocator: VmaAllocator, allocationCount: u32, allocations: [*c]const VmaAllocation, offsets: [*c]const c.VkDeviceSize, sizes: [*c]const c.VkDeviceSize) c.VkResult;
-pub extern fn vmaInvalidateAllocations(allocator: VmaAllocator, allocationCount: u32, allocations: [*c]const VmaAllocation, offsets: [*c]const c.VkDeviceSize, sizes: [*c]const c.VkDeviceSize) c.VkResult;
-pub extern fn vmaCheckCorruption(allocator: VmaAllocator, memoryTypeBits: u32) c.VkResult;
+pub extern fn vmaFlushAllocation(allocator: VmaAllocator, allocation: VmaAllocation, offset: vk.DeviceSize, size: vk.DeviceSize) vk.Result;
+pub extern fn vmaInvalidateAllocation(allocator: VmaAllocator, allocation: VmaAllocation, offset: vk.DeviceSize, size: vk.DeviceSize) vk.Result;
+pub extern fn vmaFlushAllocations(allocator: VmaAllocator, allocationCount: u32, allocations: [*c]const VmaAllocation, offsets: [*c]const vk.DeviceSize, sizes: [*c]const vk.DeviceSize) vk.Result;
+pub extern fn vmaInvalidateAllocations(allocator: VmaAllocator, allocationCount: u32, allocations: [*c]const VmaAllocation, offsets: [*c]const vk.DeviceSize, sizes: [*c]const vk.DeviceSize) vk.Result;
+pub extern fn vmaCheckCorruption(allocator: VmaAllocator, memoryTypeBits: u32) vk.Result;
 pub const struct_VmaDefragmentationContext_T = @OpaqueType();
 pub const VmaDefragmentationContext = ?*struct_VmaDefragmentationContext_T;
 pub const VMA_DEFRAGMENTATION_FLAG_INCREMENTAL = @enumToInt(enum_VmaDefragmentationFlagBits.VMA_DEFRAGMENTATION_FLAG_INCREMENTAL);
@@ -280,25 +280,25 @@ pub const enum_VmaDefragmentationFlagBits = extern enum(c_int) {
     _,
 };
 pub const VmaDefragmentationFlagBits = enum_VmaDefragmentationFlagBits;
-pub const VmaDefragmentationFlags = c.VkFlags;
+pub const VmaDefragmentationFlags = vk.Flags;
 pub const struct_VmaDefragmentationInfo2 = extern struct {
     flags: VmaDefragmentationFlags,
     allocationCount: u32,
     pAllocations: [*c]const VmaAllocation,
-    pAllocationsChanged: [*c]c.VkBool32,
+    pAllocationsChanged: [*c]vk.Bool32,
     poolCount: u32,
     pPools: [*c]const VmaPool,
-    maxCpuBytesToMove: c.VkDeviceSize,
+    maxCpuBytesToMove: vk.DeviceSize,
     maxCpuAllocationsToMove: u32,
-    maxGpuBytesToMove: c.VkDeviceSize,
+    maxGpuBytesToMove: vk.DeviceSize,
     maxGpuAllocationsToMove: u32,
-    commandBuffer: c.VkCommandBuffer,
+    commandBuffer: vk.CommandBuffer,
 };
 pub const VmaDefragmentationInfo2 = struct_VmaDefragmentationInfo2;
 pub const struct_VmaDefragmentationPassMoveInfo = extern struct {
     allocation: VmaAllocation,
-    memory: c.VkDeviceMemory,
-    offset: c.VkDeviceSize,
+    memory: vk.DeviceMemory,
+    offset: vk.DeviceSize,
 };
 pub const VmaDefragmentationPassMoveInfo = struct_VmaDefragmentationPassMoveInfo;
 pub const struct_VmaDefragmentationPassInfo = extern struct {
@@ -307,27 +307,27 @@ pub const struct_VmaDefragmentationPassInfo = extern struct {
 };
 pub const VmaDefragmentationPassInfo = struct_VmaDefragmentationPassInfo;
 pub const struct_VmaDefragmentationInfo = extern struct {
-    maxBytesToMove: c.VkDeviceSize,
+    maxBytesToMove: vk.DeviceSize,
     maxAllocationsToMove: u32,
 };
 pub const VmaDefragmentationInfo = struct_VmaDefragmentationInfo;
 pub const struct_VmaDefragmentationStats = extern struct {
-    bytesMoved: c.VkDeviceSize,
-    bytesFreed: c.VkDeviceSize,
+    bytesMoved: vk.DeviceSize,
+    bytesFreed: vk.DeviceSize,
     allocationsMoved: u32,
     deviceMemoryBlocksFreed: u32,
 };
 pub const VmaDefragmentationStats = struct_VmaDefragmentationStats;
-pub extern fn vmaDefragmentationBegin(allocator: VmaAllocator, pInfo: [*c]const VmaDefragmentationInfo2, pStats: [*c]VmaDefragmentationStats, pContext: [*c]VmaDefragmentationContext) c.VkResult;
-pub extern fn vmaDefragmentationEnd(allocator: VmaAllocator, context: VmaDefragmentationContext) c.VkResult;
-pub extern fn vmaBeginDefragmentationPass(allocator: VmaAllocator, context: VmaDefragmentationContext, pInfo: [*c]VmaDefragmentationPassInfo) c.VkResult;
-pub extern fn vmaEndDefragmentationPass(allocator: VmaAllocator, context: VmaDefragmentationContext) c.VkResult;
-pub extern fn vmaDefragment(allocator: VmaAllocator, pAllocations: [*c]const VmaAllocation, allocationCount: usize, pAllocationsChanged: [*c]c.VkBool32, pDefragmentationInfo: [*c]const VmaDefragmentationInfo, pDefragmentationStats: [*c]VmaDefragmentationStats) c.VkResult;
-pub extern fn vmaBindBufferMemory(allocator: VmaAllocator, allocation: VmaAllocation, buffer: c.VkBuffer) c.VkResult;
-pub extern fn vmaBindBufferMemory2(allocator: VmaAllocator, allocation: VmaAllocation, allocationLocalOffset: c.VkDeviceSize, buffer: c.VkBuffer, pNext: ?*const c_void) c.VkResult;
-pub extern fn vmaBindImageMemory(allocator: VmaAllocator, allocation: VmaAllocation, image: c.VkImage) c.VkResult;
-pub extern fn vmaBindImageMemory2(allocator: VmaAllocator, allocation: VmaAllocation, allocationLocalOffset: c.VkDeviceSize, image: c.VkImage, pNext: ?*const c_void) c.VkResult;
-pub extern fn vmaCreateBuffer(allocator: VmaAllocator, pBufferCreateInfo: [*c]const c.VkBufferCreateInfo, pAllocationCreateInfo: [*c]const VmaAllocationCreateInfo, pBuffer: [*c]c.VkBuffer, pAllocation: [*c]VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) c.VkResult;
-pub extern fn vmaDestroyBuffer(allocator: VmaAllocator, buffer: c.VkBuffer, allocation: VmaAllocation) void;
-pub extern fn vmaCreateImage(allocator: VmaAllocator, pImageCreateInfo: [*c]const c.VkImageCreateInfo, pAllocationCreateInfo: [*c]const VmaAllocationCreateInfo, pImage: [*c]c.VkImage, pAllocation: [*c]VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) c.VkResult;
-pub extern fn vmaDestroyImage(allocator: VmaAllocator, image: c.VkImage, allocation: VmaAllocation) void;
+pub extern fn vmaDefragmentationBegin(allocator: VmaAllocator, pInfo: [*c]const VmaDefragmentationInfo2, pStats: [*c]VmaDefragmentationStats, pContext: [*c]VmaDefragmentationContext) vk.Result;
+pub extern fn vmaDefragmentationEnd(allocator: VmaAllocator, context: VmaDefragmentationContext) vk.Result;
+pub extern fn vmaBeginDefragmentationPass(allocator: VmaAllocator, context: VmaDefragmentationContext, pInfo: [*c]VmaDefragmentationPassInfo) vk.Result;
+pub extern fn vmaEndDefragmentationPass(allocator: VmaAllocator, context: VmaDefragmentationContext) vk.Result;
+pub extern fn vmaDefragment(allocator: VmaAllocator, pAllocations: [*c]const VmaAllocation, allocationCount: usize, pAllocationsChanged: [*c]vk.Bool32, pDefragmentationInfo: [*c]const VmaDefragmentationInfo, pDefragmentationStats: [*c]VmaDefragmentationStats) vk.Result;
+pub extern fn vmaBindBufferMemory(allocator: VmaAllocator, allocation: VmaAllocation, buffer: vk.Buffer) vk.Result;
+pub extern fn vmaBindBufferMemory2(allocator: VmaAllocator, allocation: VmaAllocation, allocationLocalOffset: vk.DeviceSize, buffer: vk.Buffer, pNext: ?*const c_void) vk.Result;
+pub extern fn vmaBindImageMemory(allocator: VmaAllocator, allocation: VmaAllocation, image: vk.Image) vk.Result;
+pub extern fn vmaBindImageMemory2(allocator: VmaAllocator, allocation: VmaAllocation, allocationLocalOffset: vk.DeviceSize, image: vk.Image, pNext: ?*const c_void) vk.Result;
+pub extern fn vmaCreateBuffer(allocator: VmaAllocator, pBufferCreateInfo: [*c]const vk.BufferCreateInfo, pAllocationCreateInfo: [*c]const VmaAllocationCreateInfo, pBuffer: [*c]vk.Buffer, pAllocation: [*c]VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) vk.Result;
+pub extern fn vmaDestroyBuffer(allocator: VmaAllocator, buffer: vk.Buffer, allocation: VmaAllocation) void;
+pub extern fn vmaCreateImage(allocator: VmaAllocator, pImageCreateInfo: [*c]const vk.ImageCreateInfo, pAllocationCreateInfo: [*c]const VmaAllocationCreateInfo, pImage: [*c]vk.Image, pAllocation: [*c]VmaAllocation, pAllocationInfo: [*c]VmaAllocationInfo) vk.Result;
+pub extern fn vmaDestroyImage(allocator: VmaAllocator, image: vk.Image, allocation: VmaAllocation) void;

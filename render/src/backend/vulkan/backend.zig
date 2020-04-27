@@ -2,7 +2,6 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
-
 const testing = std.testing;
 const panic = std.debug.panic;
 
@@ -19,10 +18,12 @@ pub const RenderCore = @import("rendercore.zig").RenderCore;
 
 pub const buffer = @import("buffer.zig");
 
-const c = @import("../../c2.zig");
-const VK_SUCCESS = c.enum_VkResult.VK_SUCCESS;
+const vk = @import("../../include/vk.zig");
+const VK_SUCCESS = vk.Result.SUCCESS;
 
-const vma = @import("../../vma.zig");
+const vma = @import("../../include/vma.zig");
+
+const glfw = @import("../../include/glfw.zig");
 
 pub const VulkanError = error{
     InstanceCreationFailed,
@@ -78,8 +79,8 @@ pub const VulkanError = error{
 };
 
 const enableValidationLayers = std.debug.runtime_safety;
-const validationLayers = [_][*c]const u8{"VK_LAYER_LUNARG_standard_validation"};
-const deviceExtensions = [_][*c]const u8{c.VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+const validationLayers = [_][*:0]const u8{"VK_LAYER_LUNARG_standard_validation"};
+const deviceExtensions = [_][*:0]const u8{vk.VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 const MAX_FRAMES_IN_FLIGHT: u32 = 2;
 
 pub const VkBackend = struct {
@@ -91,16 +92,16 @@ pub const VkBackend = struct {
 
     rendercore: RenderCore,
 
-    instance: c.VkInstance,
+    instance: vk.Instance,
     gpu: Gpu,
 
-    present_queue: c.VkQueue,
-    graphics_queue: c.VkQueue,
+    present_queue: vk.Queue,
+    graphics_queue: vk.Queue,
 
-    image_available_semaphores: [MAX_FRAMES_IN_FLIGHT]c.VkSemaphore,
-    render_finished_semaphores: [MAX_FRAMES_IN_FLIGHT]c.VkSemaphore,
-    in_flight_fences: [MAX_FRAMES_IN_FLIGHT]c.VkFence,
-    in_flight_images: []?c.VkFence,
+    image_available_semaphores: [MAX_FRAMES_IN_FLIGHT]vk.Semaphore,
+    render_finished_semaphores: [MAX_FRAMES_IN_FLIGHT]vk.Semaphore,
+    in_flight_fences: [MAX_FRAMES_IN_FLIGHT]vk.Fence,
+    in_flight_images: []?vk.Fence,
     current_frame: usize = 0,
 
     pub fn new(allocator: *Allocator, name: [*c]const u8, window: *windowing.Window, rendercore: RenderCore) VkBackend {
@@ -145,7 +146,7 @@ pub const VkBackend = struct {
 
             .frameInUseCount = MAX_FRAMES_IN_FLIGHT - 1,
 
-            .vulkanApiVersion = c.VK_API_VERSION_1_0,
+            .vulkanApiVersion = vk.API_VERSION_1_0,
 
             .pVulkanFunctions = null,
 
@@ -164,15 +165,15 @@ pub const VkBackend = struct {
     }
 
     pub fn deinit(self: *VkBackend) void {
-        _ = c.vkDeviceWaitIdle(self.gpu.device);
+        vk.DeviceWaitIdle(self.gpu.device) catch unreachable;
 
         self.rendercore.deinit(false);
 
         var i: usize = 0;
         while (i < MAX_FRAMES_IN_FLIGHT) : (i += 1) {
-            c.vkDestroySemaphore(self.gpu.device, self.render_finished_semaphores[i], null);
-            c.vkDestroySemaphore(self.gpu.device, self.image_available_semaphores[i], null);
-            c.vkDestroyFence(self.gpu.device, self.in_flight_fences[i], null);
+            vk.DestroySemaphore(self.gpu.device, self.render_finished_semaphores[i], null);
+            vk.DestroySemaphore(self.gpu.device, self.image_available_semaphores[i], null);
+            vk.DestroyFence(self.gpu.device, self.in_flight_fences[i], null);
         }
 
         self.allocator.free(self.in_flight_images);
@@ -181,87 +182,73 @@ pub const VkBackend = struct {
 
         self.gpu.deinit();  
 
-        c.vkDestroyInstance(self.instance, null);
+        vk.DestroyInstance(self.instance, null);
     }
 
     fn recreateSwapchain(self: *VkBackend) !void {
-        _ = c.vkDeviceWaitIdle(self.gpu.device);
+        try vk.DeviceWaitIdle(self.gpu.device);
         self.rendercore.deinit(true);
 
         try self.rendercore.init(self.allocator, &self.vallocator, true, self.gpu, self.window);
     }
 
     pub fn render(self: *VkBackend) !void {
-        if(c.vkWaitForFences(self.gpu.device, 1, &self.in_flight_fences[self.current_frame], c.VK_TRUE, std.math.maxInt(u64)) != VK_SUCCESS) {
-            return error.Unexpected;
-        }
+        _ = try vk.WaitForFences(self.gpu.device, @ptrCast(*[1]vk.Fence, &self.in_flight_fences[self.current_frame]), vk.TRUE, std.math.maxInt(u64));
 
         var imageIndex: u32 = 0;
-        var result = c.vkAcquireNextImageKHR(self.gpu.device, self.rendercore.swapchain.swapchain, std.math.maxInt(u64), self.image_available_semaphores[self.current_frame], null, &imageIndex);
-        if (result == c.enum_VkResult.VK_ERROR_OUT_OF_DATE_KHR) {
+        var result = vk.vkAcquireNextImageKHR(self.gpu.device, self.rendercore.swapchain.swapchain, std.math.maxInt(u64), self.image_available_semaphores[self.current_frame], null, &imageIndex);
+        if (result == .ERROR_OUT_OF_DATE_KHR) {
             try self.recreateSwapchain();
-        } else if(result != VK_SUCCESS and result != c.enum_VkResult.VK_SUBOPTIMAL_KHR) {
+        } else if(result != VK_SUCCESS and result != .SUBOPTIMAL_KHR) {
             return VulkanError.AcquireImageFailed;
         }
 
         if (self.in_flight_images[imageIndex] != null) {
-            if(c.vkWaitForFences(self.gpu.device, 1, &self.in_flight_images[imageIndex].?, c.VK_TRUE, std.math.maxInt(u64)) != VK_SUCCESS) {
-                return error.Unexpected;
-            }
+            std.debug.warn("\n{}\n", .{self.in_flight_images[imageIndex].?});
+            _ = try vk.WaitForFences(self.gpu.device, @ptrCast(*[1]vk.Fence, &self.in_flight_images[imageIndex].?), vk.TRUE, std.math.maxInt(u64));
 
             self.in_flight_images[imageIndex] = self.in_flight_fences[self.current_frame];
         }
 
-        var waitSemaphores = [_]c.VkSemaphore{self.image_available_semaphores[self.current_frame]};
-        var waitStages = [_]c.VkPipelineStageFlags{c.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        var waitSemaphores = [_]vk.Semaphore{self.image_available_semaphores[self.current_frame]};
+        var waitStages = [_]vk.PipelineStageFlags{vk.PipelineStageFlags{.colorAttachmentOutput = true}};
+        const waitStageMask: [*]align(4) vk.PipelineStageFlags = @alignCast(4, &waitStages);
 
-        const signalSemaphores = [_]c.VkSemaphore{self.render_finished_semaphores[self.current_frame]};
+        const signalSemaphores = [_]vk.Semaphore{self.render_finished_semaphores[self.current_frame]};
         
-        var submitInfos = [_]c.VkSubmitInfo{c.VkSubmitInfo{
-            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_SUBMIT_INFO,
-
+        var submitInfos = [_]vk.SubmitInfo{vk.SubmitInfo{
             .waitSemaphoreCount = waitSemaphores.len,
             .pWaitSemaphores = &waitSemaphores,
-            .pWaitDstStageMask = &waitStages,
+            .pWaitDstStageMask = waitStageMask,
 
             .commandBufferCount = 1,
-            .pCommandBuffers = &self.rendercore.command.command_buffers[imageIndex],
+            .pCommandBuffers = &[_]vk.CommandBuffer{self.rendercore.command.command_buffers[imageIndex]},
 
             .signalSemaphoreCount = signalSemaphores.len,
             .pSignalSemaphores = &signalSemaphores,
-
-            .pNext = null,
         }};
 
-        if(c.vkResetFences(self.gpu.device, 1, &self.in_flight_fences[self.current_frame]) != VK_SUCCESS) {
-            return error.Unexpected;
-        }
+        try vk.ResetFences(self.gpu.device, &[_]vk.Fence{self.in_flight_fences[self.current_frame]});
 
-        if(c.vkQueueSubmit(self.gpu.graphics_queue, submitInfos.len, &submitInfos, self.in_flight_fences[self.current_frame]) != VK_SUCCESS) {
+        if(vk.vkQueueSubmit(self.gpu.graphics_queue, submitInfos.len, &submitInfos, self.in_flight_fences[self.current_frame]) != VK_SUCCESS) {
             return VulkanError.SubmitBufferFailed;
         }
 
-        const swapchains = [_]c.VkSwapchainKHR{self.rendercore.swapchain.swapchain};
-        const presentInfo = c.VkPresentInfoKHR{
-            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-
+        const swapchains = [_]vk.SwapchainKHR{self.rendercore.swapchain.swapchain};
+        const presentInfo = vk.PresentInfoKHR{
             .waitSemaphoreCount = signalSemaphores.len,
             .pWaitSemaphores = &signalSemaphores,
 
             .swapchainCount = swapchains.len,
             .pSwapchains = &swapchains,
 
-            .pImageIndices = &imageIndex,
-
-            .pResults = null,
-
-            .pNext = null,
+            .pImageIndices = &[_]u32{imageIndex},
         };
 
-        result = c.vkQueuePresentKHR(self.gpu.present_queue, &presentInfo);
-        if (result == c.enum_VkResult.VK_ERROR_OUT_OF_DATE_KHR) {
+        result = vk.vkQueuePresentKHR(self.gpu.present_queue, &presentInfo);
+        if (result == .ERROR_OUT_OF_DATE_KHR) {
             try self.recreateSwapchain();
-        } else if(result != VK_SUCCESS and result != c.enum_VkResult.VK_SUBOPTIMAL_KHR) {
+        } else if(result != VK_SUCCESS and result != .SUBOPTIMAL_KHR) {
             return VulkanError.PresentFailed;
         }
 
@@ -273,84 +260,60 @@ pub const VkBackend = struct {
             return VulkanError.ValidationLayersNotAvailable;
         }
 
-        const appInfo = c.VkApplicationInfo{
-            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_APPLICATION_INFO,
+        const appInfo = vk.ApplicationInfo{
             .pApplicationName = self.name,
-            .applicationVersion = c.VK_MAKE_VERSION(1, 0, 0),
-            .pEngineName = "No Engine",
-            .engineVersion = c.VK_MAKE_VERSION(1, 0, 0),
-            .apiVersion = c.VK_API_VERSION_1_0,
-            .pNext = null,
+            .applicationVersion = vk.MAKE_VERSION(1, 0, 0),
+            .pEngineName = "zetaframe",
+            .engineVersion = vk.MAKE_VERSION(1, 0, 0),
+            .apiVersion = vk.API_VERSION_1_0,
         };
 
         var glfwExtensionCount: u32 = 0;
-        var glfwExtensions: [*c]const [*c]const u8 = c.glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+        var glfwExtensions = glfw.glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+        const extensions = glfwExtensions[0..glfwExtensionCount];
 
-        var extensionsList = std.ArrayList([*c]const u8).init(self.allocator);
-        defer extensionsList.deinit();
-
-        try extensionsList.appendSlice(glfwExtensions[0..glfwExtensionCount]);
-
-        var extensions = extensionsList.toOwnedSlice();
-
-        const createInfo = c.VkInstanceCreateInfo{
-            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+        const createInfo = vk.InstanceCreateInfo{
             .pApplicationInfo = &appInfo,
             .enabledExtensionCount = @intCast(u32, extensions.len),
             .ppEnabledExtensionNames = extensions.ptr,
             .enabledLayerCount = if (enableValidationLayers) @intCast(u32, validationLayers.len) else 0,
             .ppEnabledLayerNames = if (enableValidationLayers) &validationLayers else null,
-            .pNext = null,
-            .flags = 0,
         };
 
-        if (c.vkCreateInstance(&createInfo, null, &self.instance) != VK_SUCCESS) {
-            return VulkanError.InstanceCreationFailed;
-        }
+        self.instance = try vk.CreateInstance(createInfo, null);
     }
 
     fn createSyncObjects(self: *VkBackend) !void {
-        const semaphoreInfo = c.VkSemaphoreCreateInfo{
-            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        const semaphoreInfo = vk.SemaphoreCreateInfo{};
 
-            .pNext = null,
-            .flags = 0,
+        const fenceInfo = vk.FenceCreateInfo{
+            .flags = vk.FenceCreateFlags{.signaled = true},
         };
 
-        const fenceInfo = c.VkFenceCreateInfo{
-            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-
-            .pNext = null,
-            .flags = c.VK_FENCE_CREATE_SIGNALED_BIT,
-        };
-
-        self.in_flight_images = try self.allocator.alloc(?c.VkFence, self.rendercore.swapchain.images.len);
+        self.in_flight_images = try self.allocator.alloc(?vk.Fence, self.rendercore.swapchain.images.len);
+        for (self.in_flight_images) |fence, i| {
+            self.in_flight_images[i] = null;
+        }
 
         var i: usize = 0;
         while (i < MAX_FRAMES_IN_FLIGHT) : (i += 1) {
-            if (c.vkCreateSemaphore(self.gpu.device, &semaphoreInfo, null, &self.image_available_semaphores[i]) != VK_SUCCESS) {
-                return VulkanError.CreateSemaphoreFailed;
-            }
-            if (c.vkCreateSemaphore(self.gpu.device, &semaphoreInfo, null, &self.render_finished_semaphores[i]) != VK_SUCCESS) {
-                return VulkanError.CreateSemaphoreFailed;
-            }
-            if(c.vkCreateFence(self.gpu.device, &fenceInfo, null, &self.in_flight_fences[i]) != VK_SUCCESS) {
-                return VulkanError.CreateFenceFailed;
-            }
+            self.image_available_semaphores[i] = try vk.CreateSemaphore(self.gpu.device, semaphoreInfo, null);
+            self.render_finished_semaphores[i] = try vk.CreateSemaphore(self.gpu.device, semaphoreInfo, null);
+            self.in_flight_fences[i] = try vk.CreateFence(self.gpu.device, fenceInfo, null);
         }
     }
 };
 
 fn checkValidationLayerSupport(allocator: *Allocator) !bool {
     var layerCount: u32 = 0;
-    if (c.vkEnumerateInstanceLayerProperties(&layerCount, null) != VK_SUCCESS) {
+    if (vk.vkEnumerateInstanceLayerProperties(&layerCount, null) != VK_SUCCESS) {
         return VulkanError.LayerEnumerationFailed;
     }
 
-    const availableLayers = try allocator.alloc(c.VkLayerProperties, layerCount);
+    const availableLayers = try allocator.alloc(vk.LayerProperties, layerCount);
     defer allocator.free(availableLayers);
 
-    if (c.vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.ptr) != VK_SUCCESS) {
+    if (vk.vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.ptr) != VK_SUCCESS) {
         return VulkanError.LayerEnumerationFailed;
     }
 

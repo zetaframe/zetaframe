@@ -2,10 +2,10 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
-const c = @import("../../c2.zig");
-const VK_SUCCESS = c.enum_VkResult.VK_SUCCESS;
+const vk = @import("../../include/vk.zig");
+const VK_SUCCESS = vk.Result.SUCCESS;
 
-const vma = @import("../../vma.zig");
+const vma = @import("../../include/vma.zig");
 
 const windowing = @import("../../windowing.zig");
 
@@ -30,7 +30,7 @@ pub const RenderCore = struct {
     pipeline: Pipeline,
     command: Command,
 
-    framebuffers: []c.VkFramebuffer,
+    framebuffers: []vk.Framebuffer,
 
     gpu: Gpu,
     window: *windowing.Window,
@@ -74,7 +74,7 @@ pub const RenderCore = struct {
         self.command.deinit();
 
         for (self.framebuffers) |framebuffer| {
-            c.vkDestroyFramebuffer(self.gpu.device, framebuffer, null);
+            vk.DestroyFramebuffer(self.gpu.device, framebuffer, null);
         }
 
         if (!recreate) {
@@ -86,14 +86,12 @@ pub const RenderCore = struct {
     }
 
     fn createFramebuffers(self: *Self) !void {
-        self.framebuffers = try self.allocator.alloc(c.VkFramebuffer, self.swapchain.imageviews.len);
+        self.framebuffers = try self.allocator.alloc(vk.Framebuffer, self.swapchain.imageviews.len);
 
         for (self.swapchain.imageviews) |imageview, i| {
-            const attachments = [_]c.VkImageView{imageview};
+            const attachments = [_]vk.ImageView{imageview};
 
-            const framebufferInfo = c.VkFramebufferCreateInfo{
-                .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-
+            const framebufferInfo = vk.FramebufferCreateInfo{
                 .renderPass = self.render_pass.render_pass,
 
                 .attachmentCount = attachments.len,
@@ -103,14 +101,9 @@ pub const RenderCore = struct {
                 .height = @intCast(u32, self.swapchain.extent.height),
 
                 .layers = 1,
-
-                .pNext = null,
-                .flags = 0,
             };
 
-            if (c.vkCreateFramebuffer(self.gpu.device, &framebufferInfo, null, &self.framebuffers[i]) != VK_SUCCESS) {
-                return VulkanError.CreateFramebufferFailed;
-            }
+            self.framebuffers[i] = try vk.CreateFramebuffer(self.gpu.device, framebufferInfo, null);
         }
     }
 };

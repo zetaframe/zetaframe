@@ -9,8 +9,8 @@ const backend = @import("../backend.zig");
 const vkbackend = @import("backend.zig");
 const VulkanError = vkbackend.VulkanError;
 
-const c = @import("../../c2.zig");
-const VK_SUCCESS = c.enum_VkResult.VK_SUCCESS;
+const vk = @import("../../include/vk.zig");
+const VK_SUCCESS = vk.Result.SUCCESS;
 
 const Gpu = @import("gpu.zig").Gpu;
 
@@ -19,9 +19,9 @@ pub const RenderPass = struct {
     allocator: *Allocator,
 
     gpu: Gpu,
-    swapchain_image_format: c.VkFormat,
+    swapchain_image_format: vk.Format,
 
-    render_pass: c.VkRenderPass,
+    render_pass: vk.RenderPass,
 
     pub fn new() Self {
         return Self{
@@ -34,7 +34,7 @@ pub const RenderPass = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, gpu: Gpu, swapchainImageFormat: c.VkFormat) !void {
+    pub fn init(self: *Self, allocator: *Allocator, gpu: Gpu, swapchainImageFormat: vk.Format) !void {
         self.gpu = gpu;
         self.swapchain_image_format = swapchainImageFormat;
 
@@ -42,67 +42,49 @@ pub const RenderPass = struct {
     }
 
     pub fn deinit(self: Self) void {
-        c.vkDestroyRenderPass(self.gpu.device, self.render_pass, null);
+        vk.DestroyRenderPass(self.gpu.device, self.render_pass, null);
     }
 
     fn createRenderPass(self: *Self) !void {
-        const colorAttachments = [_]c.VkAttachmentDescription{c.VkAttachmentDescription{
+        const colorAttachments = [_]vk.AttachmentDescription{vk.AttachmentDescription{
             .format = self.swapchain_image_format,
 
-            .samples = c.enum_VkSampleCountFlagBits.VK_SAMPLE_COUNT_1_BIT,
+            .samples = vk.SampleCountFlags{ .t1 = true },
 
-            .loadOp = c.enum_VkAttachmentLoadOp.VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp = c.enum_VkAttachmentStoreOp.VK_ATTACHMENT_STORE_OP_STORE,
+            .loadOp = .CLEAR,
+            .storeOp = .STORE,
 
-            .stencilLoadOp = c.enum_VkAttachmentLoadOp.VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .stencilStoreOp = c.enum_VkAttachmentStoreOp.VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .stencilLoadOp = .DONT_CARE,
+            .stencilStoreOp = .DONT_CARE,
 
-            .initialLayout = c.enum_VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED,
-            .finalLayout = c.enum_VkImageLayout.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-
-            .flags = 0,
+            .initialLayout = .UNDEFINED,
+            .finalLayout = .PRESENT_SRC_KHR,
         }};
 
-        const colorAttachmentRefs = [_]c.VkAttachmentReference{c.VkAttachmentReference{
+        const colorAttachmentRefs = [_]vk.AttachmentReference{vk.AttachmentReference{
             .attachment = 0,
 
-            .layout = c.enum_VkImageLayout.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .layout = .COLOR_ATTACHMENT_OPTIMAL,
         }};
 
-        const subpasses = [_]c.VkSubpassDescription{c.VkSubpassDescription{
-            .pipelineBindPoint = c.enum_VkPipelineBindPoint.VK_PIPELINE_BIND_POINT_GRAPHICS,
+        const subpasses = [_]vk.SubpassDescription{vk.SubpassDescription{
+            .pipelineBindPoint = .GRAPHICS,
 
             .colorAttachmentCount = colorAttachmentRefs.len,
             .pColorAttachments = &colorAttachmentRefs,
-
-            .inputAttachmentCount = 0,
-            .pInputAttachments = null,
-
-            .pResolveAttachments = null,
-
-            .pDepthStencilAttachment = null,
-
-            .preserveAttachmentCount = 0,
-            .pPreserveAttachments = null,
-
-            .flags = 0,
         }};
 
-        const dependencies = [_]c.VkSubpassDependency{c.VkSubpassDependency{
-            .srcSubpass = c.VK_SUBPASS_EXTERNAL,
-            .srcStageMask = c.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask = 0,
+        const dependencies = [_]vk.SubpassDependency{vk.SubpassDependency{
+            .srcSubpass = vk.SUBPASS_EXTERNAL,
+            .srcStageMask = vk.PipelineStageFlags{.colorAttachmentOutput = true},
+            .srcAccessMask = undefined,
 
             .dstSubpass = 0,
-            .dstStageMask = c.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstAccessMask = c.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-
-            .dependencyFlags = 0,
+            .dstStageMask = vk.PipelineStageFlags{.colorAttachmentOutput = true},
+            .dstAccessMask = vk.AccessFlags{.colorAttachmentWrite = true},
         }};
 
-        const renderPassInfo = c.VkRenderPassCreateInfo{
-            .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-
+        const renderPassInfo = vk.RenderPassCreateInfo{
             .attachmentCount = colorAttachments.len,
             .pAttachments = &colorAttachments,
 
@@ -111,13 +93,8 @@ pub const RenderPass = struct {
 
             .dependencyCount = dependencies.len,
             .pDependencies = &dependencies,
-
-            .pNext = null,
-            .flags = 0,
         };
 
-        if (c.vkCreateRenderPass(self.gpu.device, &renderPassInfo, null, &self.render_pass) != VK_SUCCESS) {
-            return VulkanError.CreateRenderPassFailed;
-        }
+        self.render_pass = try vk.CreateRenderPass(self.gpu.device, renderPassInfo, null);
     }
 };

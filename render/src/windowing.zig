@@ -4,7 +4,7 @@ const panic = std.debug.panic;
 
 const backend = @import("backend/backend.zig");
 
-const c = @import("c2.zig");
+const glfw = @import("include/glfw.zig");
 
 pub const WindowError = error{
     InitFailed,
@@ -17,7 +17,7 @@ pub const Size = struct {
 };
 
 pub const Window = struct {
-    window: *c.GLFWwindow,
+    window: *glfw.GLFWwindow,
 
     backend_type: backend.BackendType,
 
@@ -36,38 +36,38 @@ pub const Window = struct {
     }
 
     pub fn init(self: *Window) !void {
-        _ = c.glfwSetErrorCallback(errorCallback);
-        if (c.glfwInit() == c.GLFW_FALSE) {
+        _ = glfw.glfwSetErrorCallback(errorCallback);
+        if (glfw.glfwInit() == glfw.GLFW_FALSE) {
             return WindowError.InitFailed;
         }
 
         switch (self.backend_type) {
-            .OpenGL => {
-                //Target OpenGL 4.5
-                c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MAJOR, 4);
-                c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MINOR, 5);
+            // .OpenGL => {
+            //     //Target OpenGL 4.5
+            //     glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MAJOR, 4);
+            //     glfw.glfwWindowHint(glfw.GLFW_CONTEXT_VERSION_MINOR, 5);
 
-                //Core profile
-                c.glfwWindowHint(c.GLFW_OPENGL_PROFILE, c.GLFW_OPENGL_CORE_PROFILE);
+            //     //Core profile
+            //     glfw.glfwWindowHint(glfw.GLFW_OPENGL_PROFILE, glfw.GLFW_OPENGL_CORE_PROFILE);
 
-                //Needed for macos
-                c.glfwWindowHint(c.GLFW_OPENGL_FORWARD_COMPAT, c.GL_TRUE);
+            //     //Needed for macos
+            //     glfw.glfwWindowHint(glfw.GLFW_OPENGL_FORWARD_COMPAT, glfw.GL_TRUE);
 
-                self.window = c.glfwCreateWindow(@intCast(c_int, self.size.width), @intCast(c_int, self.size.height), self.name, null, null) orelse {
-                    return WindowError.CreationFailed;
-                };
+            //     self.window = glfw.glfwCreateWindow(@intCast(c_int, self.size.width), @intCast(c_int, self.size.height), self.name, null, null) orelse {
+            //         return WindowError.CreationFailed;
+            //     };
                 
-                c.glfwMakeContextCurrent(self.window);
+            //     glfw.glfwMakeContextCurrent(self.window);
 
-                c.glViewport(0, 0, @intCast(c_int, self.size.width), @intCast(c_int, self.size.height));
+            //     glfw.glViewport(0, 0, @intCast(c_int, self.size.width), @intCast(c_int, self.size.height));
 
-                _ = c.glfwSetFramebufferSizeCallback(self.window, openglFramebufferSizeCallback);
-            },
+            //     _ = glfw.glfwSetFramebufferSizeCallback(self.window, openglFramebufferSizeCallback);
+            // },
             .Vulkan => {
                 //Don't load OpenGL
-                c.glfwWindowHint(c.GLFW_CLIENT_API, c.GLFW_NO_API);
+                glfw.glfwWindowHint(glfw.GLFW_CLIENT_API, glfw.GLFW_NO_API);
 
-                self.window = c.glfwCreateWindow(@intCast(c_int, self.size.width), @intCast(c_int, self.size.height), self.name, null, null) orelse {
+                self.window = glfw.glfwCreateWindow(@intCast(c_int, self.size.width), @intCast(c_int, self.size.height), self.name, null, null) orelse {
                     return WindowError.CreationFailed;
                 };
             },
@@ -78,31 +78,31 @@ pub const Window = struct {
     pub fn deinit(self: Window) void {
         switch(self.backend_type) {
             .OpenGL => {
-                c.glfwDestroyWindow(self.window);
-                c.glfwTerminate();
+                glfw.glfwDestroyWindow(self.window);
+                glfw.glfwTerminate();
             },
             .Vulkan => {
-                c.glfwDestroyWindow(self.window);
-                c.glfwTerminate();
+                glfw.glfwDestroyWindow(self.window);
+                glfw.glfwTerminate();
             },
             else => {
-                c.glfwTerminate();
+                glfw.glfwTerminate();
             }
         }
     }
 
     pub fn isRunning(self: *Window) bool {
-        return (c.glfwWindowShouldClose(self.window) == c.GLFW_FALSE);
+        return (glfw.glfwWindowShouldClose(self.window) == glfw.GLFW_FALSE);
     }
 
     pub fn update(self: *Window) void {
         switch (self.backend_type) {
             .OpenGL => {
-                c.glfwSwapBuffers(self.window);
-                c.glfwPollEvents();
+                glfw.glfwSwapBuffers(self.window);
+                glfw.glfwPollEvents();
             },
             .Vulkan => {
-                c.glfwPollEvents();
+                glfw.glfwPollEvents();
             },
             else => {},
         }
@@ -115,11 +115,11 @@ fn errorCallback(err: c_int, description: [*c]const u8) callconv(.C) void {
 }
 
 //----- Vulkan Specific
-fn vulkanFramebufferSizeCallback(window: ?*c.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
+fn vulkanFramebufferSizeCallback(window: ?*glfw.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
 
 }
 
 //----- OpenGL Specific
-fn openglFramebufferSizeCallback(window: ?*c.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
-    c.glViewport(0, 0, width, height);
+fn openglFramebufferSizeCallback(window: ?*glfw.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
+    glfw.glViewport(0, 0, width, height);
 }

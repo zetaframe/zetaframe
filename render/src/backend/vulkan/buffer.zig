@@ -2,10 +2,10 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
-const c = @import("../../c2.zig");
-const VK_SUCCESS = c.enum_VkResult.VK_SUCCESS;
+const vk = @import("../../include/vk.zig");
+const VK_SUCCESS = vk.Result.SUCCESS;
 
-const vma = @import("../../vma.zig");
+const vma = @import("../../include/vma.zig");
 
 const windowing = @import("../../windowing.zig");
 
@@ -17,9 +17,9 @@ const VulkanError = vkbackend.VulkanError;
 const Gpu = @import("gpu.zig").Gpu;
 
 pub const Buffer = struct {
-    initFn: fn(self: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu) VulkanError!void,
+    initFn: fn(self: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu) anyerror!void,
     deinitFn: fn(self: *Buffer) void,
-    bufferFn: fn(self: *Buffer) c.VkBuffer,
+    bufferFn: fn(self: *Buffer) vk.Buffer,
     lenFn: fn(self: *Buffer) u32,
 
     pub fn init(self: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu) !void {
@@ -30,7 +30,7 @@ pub const Buffer = struct {
         self.deinitFn(self);
     }
 
-    pub fn buffer(self: *Buffer) c.VkBuffer {
+    pub fn buffer(self: *Buffer) vk.Buffer {
         return self.bufferFn(self);
     }
 
@@ -39,7 +39,17 @@ pub const Buffer = struct {
     }
 };
 
-pub fn VertexBuffer(comptime T: type) type {
+pub const Usage = enum{
+    Vertex,
+    Index,
+};
+
+pub fn CpuBuffer(comptime T: type, comptime usage: Usage) type {
+    const bUsage = switch (usage) {
+        .Vertex => vk.BufferUsageFlags{ .vertexBuffer = true },
+        .Index => vk.BufferUsageFlags{ .indexBuffer = true },
+    };
+
     return struct {
         const Self = @This();
         buf: Buffer,
@@ -49,11 +59,125 @@ pub fn VertexBuffer(comptime T: type) type {
 
         gpu: Gpu,
 
-        sbuffer: c.VkBuffer,
+        buffer: vk.Buffer,
+        allocation: vma.VmaAllocation,
+
+        len: u32,
+        size: u64,
+        data: []T,
+
+        pub fn new(data: []T) Self {
+            return Self {
+                .buf = Buffer{
+                    .initFn = init,
+                    .deinitFn = deinit,
+                    .bufferFn = buffer,
+                    .lenFn = len,
+                },
+
+                .allocator = undefined,
+                .vallocator = undefined,
+
+                .gpu = undefined,
+
+                .buffer = undefined,
+                .allocation = undefined,
+
+                .len = @intCast(u32, data.len),
+                .size = @sizeOf(T) * data.len,
+                .data = data,
+            };
+        }
+
+        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu) VulkanError!void {
+            const self = @fieldParentPtr(Self, "buf", buf);
+
+            self.allocator = allocator;
+            self.vallocator = vallocator;
+
+            self.gpu = gpu;
+
+            const bufferInfo = vk.BufferCreateInfo{
+                .sType = vk.enum_VkStructureType.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+
+                .size = self.size,
+
+                .usage = @intCast(u32, bUsage),
+                .sharingMode = .VK_SHARING_MODE_EXCLUSIVE,
+
+                .queueFamilyIndexCount = 0,
+                .pQueueFamilyIndices = null,
+
+                .pNext = null,
+                .flags = 0,
+            };
+
+            const allocInfo = vma.VmaAllocationCreateInfo{
+                .usage = vma.enum_VmaMemoryUsage.VMA_MEMORY_USAGE_CPU_TO_GPU,
+
+                .requiredFlags = vk.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                .preferredFlags = 0,
+
+                .memoryTypeBits = 0,
+
+                .pool = null,
+
+                .pUserData = null,
+
+                .flags = 0,
+            };
+
+            if (vma.vmaCreateBuffer(self.vallocator.*, &bufferInfo, &allocInfo, &self.buffer, &self.allocation, null) != VK_SUCCESS) {
+                return VulkanError.CreateBufferFailed;
+            }
+
+            var mappedData: []T = undefined;
+            if(vma.vmaMapMemory(self.vallocator.*, self.allocation, @ptrCast([*c]?*c_void, &mappedData)) != VK_SUCCESS) {
+                return VulkanError.MapMemoryFailed;
+            }
+            std.mem.copy(T, mappedData, self.data);
+            vma.vmaUnmapMemory(self.vallocator.*, self.allocation);
+        }
+
+        pub fn deinit(buf: *Buffer) void {
+            const self = @fieldParentPtr(Self, "buf", buf);
+            vma.vmaDestroyBuffer(self.vallocator.*, self.buffer, self.allocation);
+        }
+
+        pub fn buffer(buf: *Buffer) vk.VkBuffer {
+            const self = @fieldParentPtr(Self, "buf", buf);
+
+            return self.buffer;
+        }
+
+        pub fn len(buf: *Buffer) u32 {
+            const self = @fieldParentPtr(Self, "buf", buf);
+
+            return self.len;
+        }
+    };
+}
+
+pub fn TransferBuffer(comptime T: type, comptime usage: Usage) type {
+    const bUsage = switch (usage) {
+        .Vertex => vk.BufferUsageFlags{ .vertexBuffer = true },
+        .Index => vk.BufferUsageFlags{ .indexBuffer = true },
+    };
+
+    return struct {
+        const Self = @This();
+        buf: Buffer,
+
+        allocator: *Allocator,
+        vallocator: *vma.VmaAllocator,
+
+        gpu: Gpu,
+
+        sbuffer: vk.Buffer,
         sallocation: vma.VmaAllocation,
 
-        vbuffer: c.VkBuffer,
-        vallocation: vma.VmaAllocation,
+        dbuffer: vk.Buffer,
+        dallocation: vma.VmaAllocation,
 
         len: u32,
         size: u64,
@@ -76,8 +200,8 @@ pub fn VertexBuffer(comptime T: type) type {
                 .sbuffer = undefined,
                 .sallocation = undefined,
 
-                .vbuffer = undefined,
-                .vallocation = undefined,
+                .dbuffer = undefined,
+                .dallocation = undefined,
 
                 .len = @intCast(u32, data.len),
                 .size = @sizeOf(T) * data.len,
@@ -85,7 +209,7 @@ pub fn VertexBuffer(comptime T: type) type {
             };
         }
 
-        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu) VulkanError!void {
+        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu) anyerror!void {
             const self = @fieldParentPtr(Self, "buf", buf);
 
             self.allocator = allocator;
@@ -93,26 +217,18 @@ pub fn VertexBuffer(comptime T: type) type {
 
             self.gpu = gpu;
 
-            const sBufferInfo = c.VkBufferCreateInfo{
-                .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-
+            const sBufferInfo = vk.BufferCreateInfo{
                 .size = self.size,
 
-                .usage = @intCast(u32, c.VK_BUFFER_USAGE_TRANSFER_SRC_BIT),
-                .sharingMode = .VK_SHARING_MODE_EXCLUSIVE,
-
-                .queueFamilyIndexCount = 0,
-                .pQueueFamilyIndices = null,
-
-                .pNext = null,
-                .flags = 0,
+                .usage = vk.BufferUsageFlags{.transferSrc = true},
+                .sharingMode = .EXCLUSIVE,
             };
 
             const sAllocInfo = vma.VmaAllocationCreateInfo{
                 .usage = vma.enum_VmaMemoryUsage.VMA_MEMORY_USAGE_CPU_TO_GPU,
 
-                .requiredFlags = c.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | c.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                .preferredFlags = 0,
+                .requiredFlags = vk.MemoryPropertyFlags{.hostVisible = true, .hostCoherent = true},
+                .preferredFlags = undefined,
 
                 .memoryTypeBits = 0,
 
@@ -134,26 +250,24 @@ pub fn VertexBuffer(comptime T: type) type {
             std.mem.copy(T, mappedData, self.data);
             vma.vmaUnmapMemory(self.vallocator.*, self.sallocation);
 
-            const vBufferInfo = c.VkBufferCreateInfo{
-                .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            const queueFamilyIndices = [_]u32{ gpu.indices.graphics_family.?, gpu.indices.transfer_family.? };
+            const differentFamilies = gpu.indices.graphics_family.? != gpu.indices.transfer_family.?;
 
+            const vBufferInfo = vk.BufferCreateInfo{
                 .size = self.size,
 
-                .usage = @intCast(u32, c.VK_BUFFER_USAGE_TRANSFER_DST_BIT | c.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
-                .sharingMode = .VK_SHARING_MODE_CONCURRENT,
-
-                .queueFamilyIndexCount = 2,
-                .pQueueFamilyIndices = &[_]u32{gpu.indices.graphics_family.?, gpu.indices.transfer_family.?},
-
-                .pNext = null,
-                .flags = 0,
+                .usage = (vk.BufferUsageFlags{.transferDst = true}).with(bUsage),
+                
+                .sharingMode = if (differentFamilies) .CONCURRENT else .EXCLUSIVE,
+                .queueFamilyIndexCount = if (differentFamilies) 2 else 0,
+                .pQueueFamilyIndices = if (differentFamilies) &queueFamilyIndices else undefined,
             };
 
             const vAllocInfo = vma.VmaAllocationCreateInfo{
                 .usage = vma.enum_VmaMemoryUsage.VMA_MEMORY_USAGE_GPU_ONLY,
 
-                .requiredFlags = c.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                .preferredFlags = 0,
+                .requiredFlags = vk.MemoryPropertyFlags{.deviceLocal = true},
+                .preferredFlags = undefined,
 
                 .memoryTypeBits = 0,
 
@@ -164,7 +278,7 @@ pub fn VertexBuffer(comptime T: type) type {
                 .flags = 0,
             };
 
-            if (vma.vmaCreateBuffer(self.vallocator.*, &vBufferInfo, &vAllocInfo, &self.vbuffer, &self.vallocation, null) != VK_SUCCESS) {
+            if (vma.vmaCreateBuffer(self.vallocator.*, &vBufferInfo, &vAllocInfo, &self.dbuffer, &self.dallocation, null) != VK_SUCCESS) {
                 return VulkanError.CreateBufferFailed;
             }
 
@@ -175,81 +289,53 @@ pub fn VertexBuffer(comptime T: type) type {
 
         pub fn deinit(buf: *Buffer) void {
             const self = @fieldParentPtr(Self, "buf", buf);
-            vma.vmaDestroyBuffer(self.vallocator.*, self.vbuffer, self.vallocation);
+            vma.vmaDestroyBuffer(self.vallocator.*, self.dbuffer, self.dallocation);
         }
 
         pub fn copyBuffer(self: *Self) !void {
-            const allocInfo = c.VkCommandBufferAllocateInfo{
-                .sType = .VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-
-                .level = .VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            const allocInfo = vk.CommandBufferAllocateInfo{
+                .level = .PRIMARY,
 
                 .commandPool = self.gpu.transfer_pool,
 
                 .commandBufferCount = 1,
-
-                .pNext = null,
             };
 
-            var commandBuffer: c.VkCommandBuffer = undefined;
-            if (c.vkAllocateCommandBuffers(self.gpu.device, &allocInfo, &commandBuffer) != VK_SUCCESS) {
-                return VulkanError.AllocCommandBuffersFailed;
-            }
+            var commandBuffer: vk.CommandBuffer = undefined;
+            try vk.AllocateCommandBuffers(self.gpu.device, allocInfo, @ptrCast(*[1]vk.CommandBuffer, &commandBuffer));
             
-            const beginInfo = c.VkCommandBufferBeginInfo{
-                .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-
-                .pInheritanceInfo = null,
-
-                .pNext = null,
-                .flags = c.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            const beginInfo = vk.CommandBufferBeginInfo{
+                .flags = vk.CommandBufferUsageFlags{.oneTimeSubmit = true},
             };
 
-            if (c.vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-                return VulkanError.BeginRecordCommandBufferFailed;
-            }
+            try vk.BeginCommandBuffer(commandBuffer, beginInfo);
 
-            const copyRegion = c.VkBufferCopy{
+            const copyRegions = [_]vk.BufferCopy{vk.BufferCopy{
                 .srcOffset = 0,
                 .dstOffset = 0,
 
                 .size = self.size,
-            };
+            }};
 
-            c.vkCmdCopyBuffer(commandBuffer, self.sbuffer, self.vbuffer, 1, &copyRegion);
+            vk.CmdCopyBuffer(commandBuffer, self.sbuffer, self.dbuffer, &copyRegions);
 
-            if (c.vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-                return VulkanError.RecordCommandBufferFailed;
-            }
+            try vk.EndCommandBuffer(commandBuffer);
 
-            const submitInfo = c.VkSubmitInfo{
-                .sType = c.enum_VkStructureType.VK_STRUCTURE_TYPE_SUBMIT_INFO,
-
-                .waitSemaphoreCount = 0,
-                .pWaitSemaphores = null,
-                .pWaitDstStageMask = null,
-
+            const submitInfos = [_]vk.SubmitInfo{vk.SubmitInfo{
                 .commandBufferCount = 1,
-                .pCommandBuffers = &commandBuffer,
+                .pCommandBuffers = &[_]vk.CommandBuffer{commandBuffer},
+            }};
 
-                .signalSemaphoreCount = 0,
-                .pSignalSemaphores = null,
+            try vk.QueueSubmit(self.gpu.transfer_queue, &submitInfos, null);
+            try vk.QueueWaitIdle(self.gpu.transfer_queue);
 
-                .pNext = null,
-            };
-
-            if(c.vkQueueSubmit(self.gpu.transfer_queue, 1, &submitInfo, null) != VK_SUCCESS) {
-                return VulkanError.SubmitBufferFailed;
-            }
-            _ = c.vkQueueWaitIdle(self.gpu.transfer_queue);
-
-            c.vkFreeCommandBuffers(self.gpu.device, self.gpu.transfer_pool, 1, &commandBuffer);
+            vk.FreeCommandBuffers(self.gpu.device, self.gpu.transfer_pool, &[_]vk.CommandBuffer{commandBuffer});
         }
 
-        pub fn buffer(buf: *Buffer) c.VkBuffer {
+        pub fn buffer(buf: *Buffer) vk.Buffer {
             const self = @fieldParentPtr(Self, "buf", buf);
 
-            return self.vbuffer;
+            return self.dbuffer;
         }
 
         pub fn len(buf: *Buffer) u32 {
