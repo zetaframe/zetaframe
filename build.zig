@@ -4,10 +4,12 @@ const Builder = std.build.Builder;
 const zf = @import("pkg.zig");
 
 pub fn build(b: *Builder) void {
+    const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
 
     //Testing
     const tests = b.addTest("test.zig");
+    tests.setTarget(target);
     tests.setBuildMode(mode);
 
     tests.addPackage(zf.corepkg);
@@ -20,7 +22,13 @@ pub fn build(b: *Builder) void {
     tests.linkSystemLibrary("vulkan");
 
     tests.linkSystemLibrary("c++");
-    tests.addObjectFile("render/lib/vma/vma.o");
+
+    if (target.isLinux()) {
+        tests.addObjectFile("render/lib/vma/vma-linux.o");
+    } else if (target.isWindows()) {
+        tests.addObjectFile("render/lib/vma/vma-windows.o");
+    }
+    
 
     const test_step = b.step("test", "Run All tests");
     test_step.dependOn(&tests.step);
@@ -40,7 +48,12 @@ pub fn build(b: *Builder) void {
     tests_no_render.linkSystemLibrary("vulkan");
 
     tests_no_render.linkSystemLibrary("c++");
-    tests_no_render.addObjectFile("render/lib/vma/vma.o");
+    
+    if (target.isLinux()) {
+        tests_no_render.addObjectFile("render/lib/vma/vma-linux.o");
+    } else if (target.isWindows()) {
+        tests_no_render.addObjectFile("render/lib/vma/vma-windows.o");
+    }
 
     const test_no_render = b.step("test-no-render", "Run all but render tests");
     test_no_render.dependOn(&tests_no_render.step);
