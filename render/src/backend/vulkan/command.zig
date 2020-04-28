@@ -31,10 +31,11 @@ pub const Command = struct {
     pipeline: vk.Pipeline,
 
     vertex_buffer: *Buffer,
+    index_buffer: *Buffer,
 
     command_buffers: []vk.CommandBuffer,
 
-    pub fn new(vertexBuffer: *Buffer) Self {
+    pub fn new(vertexBuffer: *Buffer, indexBuffer: *Buffer) Self {
         return Self{
             .allocator = undefined,
             .vallocator = undefined,
@@ -46,6 +47,7 @@ pub const Command = struct {
             .pipeline = undefined,
 
             .vertex_buffer = vertexBuffer,
+            .index_buffer = indexBuffer,
 
             .command_buffers = undefined,
         };
@@ -62,6 +64,7 @@ pub const Command = struct {
         self.pipeline = pipeline;
 
         try self.vertex_buffer.init(self.allocator, self.vallocator, self.gpu);
+        try self.index_buffer.init(self.allocator, self.vallocator, self.gpu);
 
         try self.createCommandBuffers();
     }
@@ -70,6 +73,7 @@ pub const Command = struct {
         vk.FreeCommandBuffers(self.gpu.device, self.gpu.graphics_pool, self.command_buffers);
         self.allocator.free(self.command_buffers);
 
+        self.index_buffer.deinit();
         self.vertex_buffer.deinit();
     }
 
@@ -137,8 +141,9 @@ pub const Command = struct {
                 const offsets = [_]u64{0};
 
                 vk.CmdBindVertexBuffers(self.command_buffers[i], 0, &vertexBuffers, &offsets);
+                vk.CmdBindIndexBuffer(self.command_buffers[i], self.index_buffer.buffer(), 0, .UINT16);
 
-                vk.CmdDraw(self.command_buffers[i], self.vertex_buffer.len(), 1, 0, 0);
+                vk.CmdDrawIndexed(self.command_buffers[i], self.index_buffer.len(), 1, 0, 0, 0);
             }
             vk.CmdEndRenderPass(self.command_buffers[i]);
 

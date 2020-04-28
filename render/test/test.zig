@@ -27,11 +27,16 @@ fn vulkan_backend() !void {
     var renderpass = backend.vulkan.RenderPass.new();
     var pipeline = backend.vulkan.Pipeline.new(vert, frag);
 
-    var vertex1 = vertex.VkVertex2d.new(zmath.Vec2(f32).new(-0.5, 0.5), zmath.Vec3(f32).new(1.0, 0.0, 0.0));
-    var vertex2 = vertex.VkVertex2d.new(zmath.Vec2(f32).new(-0.5, -0.5), zmath.Vec3(f32).new(0.0, 1.0, 0.0));
-    var vertex3 = vertex.VkVertex2d.new(zmath.Vec2(f32).new(0.5, -0.5), zmath.Vec3(f32).new(0.0, 0.0, 1.0));
-    var vertexBuffer = backend.vulkan.buffer.TransferBuffer(vertex.VkVertex2d, .Vertex).new(&[_]vertex.VkVertex2d{vertex1, vertex2, vertex3});
-    var command = backend.vulkan.Command.new(&vertexBuffer.buf);
+    var vertex1 = vertex.VkVertex2d.new(zmath.Vec2(f32).new(-0.5,- 0.5), zmath.Vec3(f32).new(1.0, 0.0, 0.0));
+    var vertex2 = vertex.VkVertex2d.new(zmath.Vec2(f32).new(0.5, -0.5), zmath.Vec3(f32).new(0.0, 1.0, 0.0));
+    var vertex3 = vertex.VkVertex2d.new(zmath.Vec2(f32).new(0.5, 0.5), zmath.Vec3(f32).new(0.0, 0.0, 1.0));
+    var vertex4 = vertex.VkVertex2d.new(zmath.Vec2(f32).new(-0.5, 0.5), zmath.Vec3(f32).new(1.0, 1.0, 1.0));
+    var vertexBuffer = backend.vulkan.buffer.StagedBuffer(vertex.VkVertex2d, .Vertex).new(&[_]vertex.VkVertex2d{vertex1, vertex2, vertex3, vertex4});
+
+    var indices = [_]u16{0, 1, 2, 2, 3, 0};
+    var indexBuffer = backend.vulkan.buffer.StagedBuffer(u16, .Index).new(&indices);
+
+    var command = backend.vulkan.Command.new(&vertexBuffer.buf, &indexBuffer.buf);
 
     var rendercore = backend.vulkan.RenderCore.new(swapchain, renderpass, pipeline, command);
 

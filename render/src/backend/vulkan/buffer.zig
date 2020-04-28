@@ -44,11 +44,15 @@ pub const Usage = enum{
     Index,
 };
 
-pub fn CpuBuffer(comptime T: type, comptime usage: Usage) type {
-    const bUsage = switch (usage) {
+fn getVkUsage(usage: Usage) vk.BufferUsageFlags {
+    return switch (usage) {
         .Vertex => vk.BufferUsageFlags{ .vertexBuffer = true },
         .Index => vk.BufferUsageFlags{ .indexBuffer = true },
     };
+}
+
+pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
+    const bUsage = getVkUsage(usage);
 
     return struct {
         const Self = @This();
@@ -89,7 +93,7 @@ pub fn CpuBuffer(comptime T: type, comptime usage: Usage) type {
             };
         }
 
-        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu) VulkanError!void {
+        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu) anyerror!void {
             const self = @fieldParentPtr(Self, "buf", buf);
 
             self.allocator = allocator;
@@ -97,26 +101,24 @@ pub fn CpuBuffer(comptime T: type, comptime usage: Usage) type {
 
             self.gpu = gpu;
 
-            const bufferInfo = vk.BufferCreateInfo{
-                .sType = vk.enum_VkStructureType.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            const queueFamilyIndices = [_]u32{ gpu.indices.graphics_family.?, gpu.indices.transfer_family.? };
+            const differentFamilies = gpu.indices.graphics_family.? != gpu.indices.transfer_family.?;
 
+            const bufferInfo = vk.BufferCreateInfo{
                 .size = self.size,
 
-                .usage = @intCast(u32, bUsage),
-                .sharingMode = .VK_SHARING_MODE_EXCLUSIVE,
-
-                .queueFamilyIndexCount = 0,
-                .pQueueFamilyIndices = null,
-
-                .pNext = null,
-                .flags = 0,
+                .usage = bUsage,
+                
+                .sharingMode = if (differentFamilies) .CONCURRENT else .EXCLUSIVE,
+                .queueFamilyIndexCount = if (differentFamilies) 2 else 0,
+                .pQueueFamilyIndices = if (differentFamilies) &queueFamilyIndices else undefined,
             };
 
             const allocInfo = vma.VmaAllocationCreateInfo{
                 .usage = vma.enum_VmaMemoryUsage.VMA_MEMORY_USAGE_CPU_TO_GPU,
 
-                .requiredFlags = vk.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                .preferredFlags = 0,
+                .requiredFlags = vk.MemoryPropertyFlags{.hostVisible = true, .hostCoherent = true},
+                .preferredFlags = vk.MemoryPropertyFlags{.hostCached = true},
 
                 .memoryTypeBits = 0,
 
@@ -144,7 +146,7 @@ pub fn CpuBuffer(comptime T: type, comptime usage: Usage) type {
             vma.vmaDestroyBuffer(self.vallocator.*, self.buffer, self.allocation);
         }
 
-        pub fn buffer(buf: *Buffer) vk.VkBuffer {
+        pub fn buffer(buf: *Buffer) vk.Buffer {
             const self = @fieldParentPtr(Self, "buf", buf);
 
             return self.buffer;
@@ -158,11 +160,8 @@ pub fn CpuBuffer(comptime T: type, comptime usage: Usage) type {
     };
 }
 
-pub fn TransferBuffer(comptime T: type, comptime usage: Usage) type {
-    const bUsage = switch (usage) {
-        .Vertex => vk.BufferUsageFlags{ .vertexBuffer = true },
-        .Index => vk.BufferUsageFlags{ .indexBuffer = true },
-    };
+pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
+    const bUsage = getVkUsage(usage);
 
     return struct {
         const Self = @This();
