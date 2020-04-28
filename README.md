@@ -10,7 +10,7 @@ The core of all zetaframe applications. Easy integration of other modules.
 
 ### math
 
-A vulkan and opengl compatiable linear algebra library. `wip`
+A vulkan and opengl compatible linear algebra library. `wip`
 
 ### render
 
