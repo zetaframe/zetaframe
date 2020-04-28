@@ -40,20 +40,6 @@ pub fn build(b: *Builder) void {
 
     tests_no_render.addPackage(zf.corepkg);
     tests_no_render.addPackage(zf.mathpkg);
-    tests_no_render.addPackage(zf.renderpkg);
-
-    tests_no_render.linkSystemLibrary("c");
-    // tests_no_render.linkSystemLibrary("epoxy");
-    tests_no_render.linkSystemLibrary("glfw");
-    tests_no_render.linkSystemLibrary("vulkan");
-
-    tests_no_render.linkSystemLibrary("c++");
-    
-    if (target.isLinux()) {
-        tests_no_render.addObjectFile("render/lib/vma/vma-linux.o");
-    } else if (target.isWindows()) {
-        tests_no_render.addObjectFile("render/lib/vma/vma-windows.o");
-    }
 
     const test_no_render = b.step("test-no-render", "Run all but render tests");
     test_no_render.dependOn(&tests_no_render.step);
