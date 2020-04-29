@@ -1,4 +1,4 @@
-pub const vertex = @import("vertex.zig");
+pub const objects = @import("objects.zig");
 
 pub const windowing = @import("windowing.zig");
 

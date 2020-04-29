@@ -7,7 +7,6 @@ pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
 
-    //Testing
     const tests = b.addTest("test.zig");
     tests.setTarget(target);
     tests.setBuildMode(mode);
@@ -28,7 +27,6 @@ pub fn build(b: *Builder) void {
     } else if (target.isWindows()) {
         tests.addObjectFile("render/lib/vma/vma-windows.o");
     }
-    
 
     const test_step = b.step("test", "Run All tests");
     test_step.dependOn(&tests.step);

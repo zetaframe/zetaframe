@@ -2,6 +2,87 @@ const std = @import("std");
 const math = std.math;
 const trait = std.meta.trait;
 
+fn VecMixin(comptime Self: type) type {
+    comptime const VecType = @typeInfo(Self).Struct.fields[0].field_type;
+    return struct {
+        pub fn clone(self: *Self) Self {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                @field(result, field.name) = @field(self.*, field.name);
+            }
+            return result;
+        }
+
+        pub fn add(self: Self, other: Self) Self {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                @field(result, field.name) = @field(self, field.name) + @field(other, field.name);
+            }
+            return result;
+        }
+
+        pub fn sub(self: Self, other: Self) Self {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                @field(result, field.name) = @field(self, field.name) - @field(other, field.name);
+            }
+            return result;
+        }
+
+        pub fn mul(self: Self, other: Self) Self {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                @field(result, field.name) = @field(self, field.name) * @field(other, field.name);
+            }
+            return result;
+        }
+
+        pub fn mulScalar(self: Self, other: VecType) Self {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                @field(result, field.name) = @field(self, field.name) * other;
+            }
+            return result;
+        }
+
+        pub fn div(self: Self, other: Self) Self {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                @field(result, field.name) = @field(self, field.name) / @field(other, field.name);
+            }
+            return result;
+        }
+
+        pub fn divScalar(self: Self, other: VecType) Self {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                @field(result, field.name) = @field(self, field.name) / other;
+            }
+            return result;
+        }
+
+        pub fn mag(self: Self) VecType {
+            return math.sqrt(self.magSqr());
+        }
+
+        pub fn magSqr(self: Self) VecType {
+            var result: VecType = 0;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                result += @field(self, field.name) * @field(self, field.name);
+            }
+            return result;
+        }
+
+        pub fn neg(self: Self) VecType {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                @field(result, field.name) = -@field(self, field.name);
+            }
+            return result;
+        }
+    };
+}
+
 pub fn Vec2(comptime T: type) type {
     if (!comptime trait.isNumber(T)) {
         @compileError("Vec2 type must be a number");
@@ -23,74 +104,12 @@ pub fn Vec2(comptime T: type) type {
         pub const One = Self{ .x = 1, .y = 1 };
         pub const Zero = Self{ .x = 0, .y = 0 };
 
+        usingnamespace VecMixin(Self);
+
         pub fn new(x: T, y: T) Self {
             return Self{
                 .x = x,
                 .y = y,
-            };
-        }
-
-        pub fn clone(self: *Self) Self {
-            return Self{
-                .x = self.x,
-                .y = self.y,
-            };
-        }
-
-        pub fn magnitude(self: *Self) T {
-            return math.sqrt(self.magnitudeSqr());
-        }
-
-        pub fn magnitudeSqr(self: *Self) T {
-            return (self.x * self.x) + (self.y * self.y);
-        }
-
-        pub fn add(self: *Self, other: *Self) Self {
-            return Self{
-                .x = self.x + other.x,
-                .y = self.y + other.y,
-            };
-        }
-
-        pub fn sub(self: *Self, other: *Self) Self {
-            return Self{
-                .x = self.x - other.x,
-                .y = self.y - other.y,
-            };
-        }
-
-        pub fn mulScalar(self: *Self, other: T) Self {
-            return Self{
-                .x = self.x * other,
-                .y = self.y * other,
-            };
-        }
-
-        pub fn mul(self: *Self, other: *Self) Self {
-            return Self{
-                .x = self.x * other.x,
-                .y = self.y * other.y,
-            };
-        }
-
-        pub fn divScalar(self: *Self, other: T) Self {
-            return Self{
-                .x = self.x / other,
-                .y = self.y / other,
-            };
-        }
-
-        pub fn div(self: *Self, other: *Self) Self {
-            return Self{
-                .x = self.x / other.x,
-                .y = self.y / other.y,
-            };
-        }
-
-        pub fn neg(self: *Self) Self {
-            return Self{
-                .x = -self.x,
-                .y = -self.y,
             };
         }
     };
@@ -120,6 +139,8 @@ pub fn Vec3(comptime T: type) type {
         pub const One = Self{ .x = 1, .y = 1, .z = 1 };
         pub const Zero = Self{ .x = 0, .y = 0, .z = 0 };
 
+        usingnamespace VecMixin(Self);
+
         pub fn new(x: T, y: T, z: T) Self {
             return Self{
                 .x = x,
@@ -133,78 +154,6 @@ pub fn Vec3(comptime T: type) type {
                 .x = other.x,
                 .y = other.y,
                 .z = 0,
-            };
-        }
-
-        pub fn clone(self: *Self) Self {
-            return Self{
-                .x = self.x,
-                .y = self.y,
-                .z = self.z,
-            };
-        }
-
-        pub fn magnitude(self: *Self) T {
-            return math.sqrt(self.magnitudeSqr());
-        }
-
-        pub fn magnitudeSqr(self: *Self) T {
-            return (self.x * self.x) + (self.y * self.y) + (self.z * self.z);
-        }
-
-        pub fn add(self: *Self, other: *Self) Self {
-            return Self{
-                .x = self.x + other.x,
-                .y = self.y + other.y,
-                .z = self.z + other.z,
-            };
-        }
-
-        pub fn sub(self: *Self, other: *Self) Self {
-            return Self{
-                .x = self.x - other.x,
-                .y = self.y - other.y,
-                .z = self.z - other.z,
-            };
-        }
-
-        pub fn mulScalar(self: *Self, other: T) Self {
-            return Self{
-                .x = self.x * other,
-                .y = self.y * other,
-                .z = self.z * other,
-            };
-        }
-
-        pub fn mul(self: *Self, other: *Self) Self {
-            return Self{
-                .x = self.x * other.x,
-                .y = self.y * other.y,
-                .z = self.z * other.z,
-            };
-        }
-
-        pub fn divScalar(self: *Self, other: T) Self {
-            return Self{
-                .x = self.x / other,
-                .y = self.y / other,
-                .z = self.z / other,
-            };
-        }
-
-        pub fn div(self: *Self, other: *Self) Self {
-            return Self{
-                .x = self.x / other.x,
-                .y = self.y / other.y,
-                .z = self.z / other.z,
-            };
-        }
-
-        pub fn neg(self: *Self) Self {
-            return Self{
-                .x = -self.x,
-                .y = -self.y,
-                .z = -self.z,
             };
         }
     };
@@ -237,6 +186,8 @@ pub fn Vec4(comptime T: type) type {
         pub const One = Self{ .x = 1, .y = 1, .z = 1, .w = 1 };
         pub const Zero = Self{ .x = 0, .y = 0, .z = 0, .w = 0 };
 
+        usingnamespace VecMixin(Self);
+
         pub fn new(x: T, y: T, z: T, w: T) Self {
             return Self{
                 .x = x,
@@ -261,86 +212,6 @@ pub fn Vec4(comptime T: type) type {
                 .y = other.y,
                 .z = other.z,
                 .w = 0,
-            };
-        }
-
-        pub fn clone(self: *Self) Self {
-            return Self{
-                .x = self.x,
-                .y = self.y,
-                .z = self.z,
-                .w = self.w,
-            };
-        }
-
-        pub fn magnitude(self: *Self) T {
-            return math.sqrt(self.magnitudeSqr());
-        }
-
-        pub fn magnitudeSqr(self: *Self) T {
-            return (self.x * self.x) + (self.y * self.y) + (self.z * self.z) + (self.w * self.w);
-        }
-
-        pub fn add(self: *Self, other: *Self) Self {
-            return Self{
-                .x = self.x + other.x,
-                .y = self.y + other.y,
-                .z = self.z + other.z,
-                .w = self.w + other.w,
-            };
-        }
-
-        pub fn sub(self: *Self, other: *Self) Self {
-            return Self{
-                .x = self.x - other.x,
-                .y = self.y - other.y,
-                .z = self.z - other.z,
-                .w = self.w - other.w,
-            };
-        }
-
-        pub fn mulScalar(self: *Self, other: T) Self {
-            return Self{
-                .x = self.x * other,
-                .y = self.y * other,
-                .z = self.z * other,
-                .w = self.w * other,
-            };
-        }
-
-        pub fn mul(self: *Self, other: *Self) Self {
-            return Self{
-                .x = self.x * other.x,
-                .y = self.y * other.y,
-                .z = self.z * other.z,
-                .w = self.w * other.w,
-            };
-        }
-
-        pub fn divScalar(self: *Self, other: T) Self {
-            return Self{
-                .x = self.x / other,
-                .y = self.y / other,
-                .z = self.z / other,
-                .w = self.w / other,
-            };
-        }
-
-        pub fn div(self: *Self, other: *Self) Self {
-            return Self{
-                .x = self.x / other.x,
-                .y = self.y / other.y,
-                .z = self.z / other.z,
-                .w = self.w / other.w,
-            };
-        }
-
-        pub fn neg(self: *Self) Self {
-            return Self{
-                .x = -self.x,
-                .y = -self.y,
-                .z = -self.z,
-                .w = -self.w,
             };
         }
     };

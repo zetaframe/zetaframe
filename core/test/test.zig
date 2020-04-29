@@ -59,4 +59,6 @@ pub fn rtest() !void {
     testing.expect(hComponent1.*.HealthComponent == 100);
 
     world.run();
+
+    std.meta.refAllDecls(@This());
 }

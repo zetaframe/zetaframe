@@ -21,7 +21,7 @@ pub const Uniform = struct {
     vallocator: *vma.Allocator,
 
     gpu: Gpu,
-
+    
     pub fn new() Self {
         return Self{
 

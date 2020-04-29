@@ -10,7 +10,7 @@ const VulkanError = @import("backend.zig").VulkanError;
 const vk = @import("../../include/vk.zig");
 const VK_SUCCESS = vk.enum_VkResult.VK_SUCCESS;
 
-const Vertex = @import("../../vertex.zig").VkVertex2d;
+const Vertex = @import("../../objects.zig").VkVertex2d;
 const Gpu = @import("gpu.zig").Gpu;
 
 pub const Pipeline = struct {

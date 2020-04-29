@@ -7,6 +7,18 @@ const Vec2 = vec.Vec2;
 const Vec3 = vec.Vec3;
 const Vec4 = vec.Vec4;
 
+fn MatMixin(comptime Self: type) type {
+    return struct {
+        pub fn clone(self: *Self) Self {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                @field(result, field.name) = @field(self.*, field.name);
+            }
+            return result;
+        }
+    };
+}
+
 pub fn Mat22(comptime T: type) type {
     if (!comptime trait.isNumber(T)) {
         @compileError("Mat22 type must be a number");
