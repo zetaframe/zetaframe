@@ -320,6 +320,14 @@ pub fn ComponentStorage(comptime entityT: type, comptime storageT: type, comptim
     };
 }
 
+pub const System = struct {
+    runFn: fn(self: *System) anyerror!void,
+
+    pub fn run(self: *System) !void {
+        self.runFn(self);
+    }
+}
+
 fn ResourceStorage(comptime entityT: type, comptime storageT: type, comptime resourceT: type) type {
     return struct {
         const Self = @This();
