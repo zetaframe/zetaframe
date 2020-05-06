@@ -4,7 +4,6 @@ const math = std.math;
 
 const mem = std.mem;
 const Allocator = mem.Allocator;
-const ArenaAllocator = std.heap.ArenaAllocator;
 
 const assert = std.debug.assert;
 
@@ -40,8 +39,6 @@ pub fn World(comptime entityT: type, comptime storageT: type, comptime component
 
         pub const WorldComponentStorage = ComponentStorage(entityT, storageT, componentT);
 
-        pub const WorldSystem = fn () void;
-
         const Self = @This();
         allocator: *Allocator,
 
@@ -55,7 +52,7 @@ pub fn World(comptime entityT: type, comptime storageT: type, comptime component
         component_storages: []WorldComponentStorage,
 
         //----- Systems
-        systems: std.AutoHashMap(WorldSystem, void),
+        systems: std.AutoHashMap(*System, void),
         current_systemid: storageT = 0,
 
         //----- Resources
@@ -67,7 +64,7 @@ pub fn World(comptime entityT: type, comptime storageT: type, comptime component
             var component_storages = try allocator.alloc(WorldComponentStorage, @typeInfo(componentT).Union.fields.len);
             errdefer allocator.free(component_storages);
 
-            var systems = std.AutoHashMap(WorldSystem, void).init(allocator);
+            var systems = std.AutoHashMap(*System, void).init(allocator);
 
             var i: usize = 0;
             while (i < @typeInfo(componentT).Union.fields.len) {
@@ -160,14 +157,14 @@ pub fn World(comptime entityT: type, comptime storageT: type, comptime component
         //----- Components
 
         //----- Systems
-        pub fn registerSystem(self: *Self, system: WorldSystem) !void {
+        pub fn registerSystem(self: *Self, system: *System) !void {
             _ = try self.systems.put(system, {});
         }
 
         pub fn run(self: *Self) void {
             var iter = self.systems.iterator();
             while (iter.next()) |system| {
-                system.key();
+                system.key.run();
             }
         }
 
@@ -321,12 +318,12 @@ pub fn ComponentStorage(comptime entityT: type, comptime storageT: type, comptim
 }
 
 pub const System = struct {
-    runFn: fn(self: *System) anyerror!void,
+    runFn: fn(self: *System) void,
 
-    pub fn run(self: *System) !void {
+    pub fn run(self: *System) void {
         self.runFn(self);
     }
-}
+};
 
 fn ResourceStorage(comptime entityT: type, comptime storageT: type, comptime resourceT: type) type {
     return struct {

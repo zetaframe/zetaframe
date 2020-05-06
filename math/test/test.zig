@@ -1,5 +1,7 @@
 usingnamespace @import("zetamath");
 
-pub fn rtest() !void {
+const std = @import("std");
 
+pub fn rtest() !void {
+    std.debug.warn("\n", .{});
 }

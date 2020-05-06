@@ -18,20 +18,37 @@ pub const Component = union(enum) {
     AccelerationComponent: Vec3,
 };
 
-fn DamageSystem() void {
-    std.debug.warn("\nDamaged!\n", .{});
-}
+const DamageSystem = struct {
+    const Self = @This();
+    system: System,
+
+    pub fn init() Self {
+        return Self{
+            .system = System {
+                .runFn = run,
+            },
+        };
+    }
+
+    fn run(sys: *System) void {
+        std.debug.warn("\nDamaged!\n", .{});
+    }
+};
 
 fn HungerSystem() void {
     std.debug.warn("\nHungered!\n", .{});
 }
 
 pub fn rtest() !void {
+    std.debug.warn("\n", .{});
+
     var world = try World(u8, u8, Component).init(std.heap.page_allocator);
     defer world.deinit();
 
-    try world.registerSystem(DamageSystem);
-    try world.registerSystem(HungerSystem);
+    var damageSystem = DamageSystem.init();
+
+    try world.registerSystem(&damageSystem.system);
+    //try world.registerSystem(HungerSystem);
 
     var entity0_1 = try world.createEntity().build();
 

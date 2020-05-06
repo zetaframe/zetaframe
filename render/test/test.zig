@@ -4,11 +4,15 @@ usingnamespace @import("zetarender");
 const std = @import("std");
 
 pub fn rtest() !void {
+    std.debug.warn("\n", .{});
+
     try vulkan_backend();
     std.meta.refAllDecls(@This());
 }
 
 // test "window" {
+//     warn("\n", .{});
+
 //     var testWindow = windowing.Window.new("Window Test", windowing.Size{ .width = 800, .height = 600 }, .None);
 //     try testWindow.init();
 //     defer testWindow.deinit();
@@ -17,6 +21,8 @@ pub fn rtest() !void {
 // }
 
 fn vulkan_backend() !void {
+    std.debug.warn("\n", .{});
+
     var testWindow = windowing.Window.new("Vulkan Test", windowing.Size{ .width = 1280, .height = 720 }, .Vulkan);
     try testWindow.init();
     defer testWindow.deinit();
@@ -31,7 +37,7 @@ fn vulkan_backend() !void {
     var vertex1 = objects.VkVertex2d.new(zmath.Vec2(f32).new(-0.5,- 0.5), zmath.Vec3(f32).new(1.0, 0.0, 0.0));
     var vertex2 = objects.VkVertex2d.new(zmath.Vec2(f32).new(0.5, -0.5), zmath.Vec3(f32).new(0.0, 1.0, 0.0));
     var vertex3 = objects.VkVertex2d.new(zmath.Vec2(f32).new(0.5, 0.5), zmath.Vec3(f32).new(0.0, 0.0, 1.0));
-    var vertex4 = objects.VkVertex2d.new(zmath.Vec2(f32).new(-0.5, 0.5), zmath.Vec3(f32).new(1.0, 1.0, 1.0));
+    var vertex4 = objects.VkVertex2d.new(zmath.Vec2(f32).new(-0.5, 0.5), zmath.Vec3(f32).new(0.0, 0.0, 0.0));
     var vertexBuffer = backend.vulkan.buffer.StagedBuffer(objects.VkVertex2d, .Vertex).new(&[_]objects.VkVertex2d{vertex1, vertex2, vertex3, vertex4});
 
     var indices = [_]u16{0, 1, 2, 2, 3, 0};
@@ -52,6 +58,8 @@ fn vulkan_backend() !void {
 }
 
 // test "opengl backend" {
+//     warn("\n", .{});
+
 //     var testWindow = windowing.Window.new("OpenGL Test", windowing.Size{ .width = 800, .height = 600 }, .OpenGL);
 //     try testWindow.init();
 //     defer testWindow.deinit();

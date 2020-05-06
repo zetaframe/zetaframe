@@ -15,16 +15,32 @@ const vma = @import("../../include/vma.zig");
 const Gpu = @import("gpu.zig").Gpu;
 const Buffer = @import("buffer.zig").Buffer;
 
-pub const Uniform = struct {
-    const Self = @This();
-    allocator: *Allocator,
-    vallocator: *vma.Allocator,
+pub fn Uniform(comptime T: type) type {
+    return struct {
+        const Self = @This();
+        allocator: *Allocator,
+        vallocator: *vma.Allocator,
 
-    gpu: Gpu,
-    
-    pub fn new() Self {
-        return Self{
+        gpu: Gpu,
+        
+        pub fn new() Self {
+            return Self{
+                .allocator = undefined,
+                .vallocator = undefined,
 
-        };
-    }
+                .gpu = undefined,
+            };
+        }
+
+        pub fn init(self: *Self, allocator: *Allocator, vallocator: *vma.Allocator, gpu: Gpu) !void {
+            self.allocator = allocator;
+            self.vallocator = vallocator;
+
+            self.gpu = gpu;
+        }
+
+        pub fn deinit(self: Self) void {
+
+        }
+    };
 };
