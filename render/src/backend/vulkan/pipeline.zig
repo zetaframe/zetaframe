@@ -1,4 +1,5 @@
 const std = @import("std");
+const trait = std.meta.trait;
 
 const Allocator = std.mem.Allocator;
 
@@ -10,12 +11,91 @@ const VulkanError = @import("backend.zig").VulkanError;
 const vk = @import("../../include/vk.zig");
 const VK_SUCCESS = vk.enum_VkResult.VK_SUCCESS;
 
-const Vertex = @import("../../objects.zig").VkVertex2d;
 const Gpu = @import("gpu.zig").Gpu;
+
+pub const Settings = struct {
+    pub const Input = struct {
+        pub const BindingDescription = struct {
+            binding: u32,
+            stride: u32,
+        };
+
+        pub const AttributeDescription = struct {
+            format: vk.Format,
+            offset: u32,
+        };
+
+        const Self = @This();
+
+        binding_description: BindingDescription,
+        attribute_descriptions: []AttributeDescription,
+
+        pub fn init(comptime T: type, binding: u32, allocator: *Allocator) !Self {
+            if (comptime !trait.is(.Struct)(T)) {
+                @compileError("Vertex Input Type must be a packed struct");
+            }
+            if (comptime !trait.isPacked(T)) {
+                @compileError("Vertex Input Type must be a packed struct");
+            }
+
+            var attributeDescriptions = std.ArrayList(AttributeDescription).init(allocator);
+
+            inline for (@typeInfo(T).Struct.fields) |field, i| {
+                var format: vk.Format = undefined;
+                switch(@typeInfo(field.field_type).Struct.fields[0].field_type) {
+                    f32 => switch (@typeInfo(field.field_type).Struct.fields.len) {
+                        1 => format = .R32_SFLOAT,
+                        2 => format = .R32G32_SFLOAT,
+                        3 => format = .R32G32B32_SFLOAT,
+                        4 => format = .R32G32B32A32_SFLOAT,
+                        else => @compileError("Invalid Type for Vertex Input"),
+                    },
+                    i32 => switch (@typeInfo(field.field_type).Struct.fields.len) {
+                        1 => format = .R32_SINT,
+                        2 => format = .R32G32_SINT,
+                        3 => format = .R32G32B32_SINT,
+                        4 => format = .R32G32B32A32_SINT,
+                        else => @compileError("Invalid Type for Vertex Input"),
+                    },
+                    else => @compileError("Invalid Type for Vertex Input"),
+                }
+                try attributeDescriptions.append(AttributeDescription{
+                    .format = format,
+                    .offset = @intCast(u32, @byteOffsetOf(T, field.name)),
+                });
+            }
+
+            const ret = Self{
+                .binding_description = BindingDescription{
+                    .binding = binding,
+                    .stride = @sizeOf(T),
+                },
+                .attribute_descriptions = attributeDescriptions.toOwnedSlice(),
+            };
+
+            attributeDescriptions.deinit();
+            
+            return ret;
+        }
+    };
+
+    pub const Assembly = struct {
+        topology: vk.PrimitiveTopology,
+    };
+
+    pub const Rasterizer = struct {
+
+    };
+
+    inputs: []Input,
+    assembly: Assembly,
+};
 
 pub const Pipeline = struct {
     const Self = @This();
     allocator: *Allocator,
+
+    settings: Settings,
 
     pipeline: vk.Pipeline,
 
@@ -44,9 +124,11 @@ pub const Pipeline = struct {
 
     pipeline_layout: vk.PipelineLayout,
 
-    pub fn new(vert_shader: backend.Shader, fragment_shader: backend.Shader) Self {
+    pub fn new(settings: Settings, vert_shader: backend.Shader, fragment_shader: backend.Shader) Self {
         return Self{
             .allocator = undefined,
+
+            .settings = settings,
 
             .pipeline = undefined,
 
@@ -164,36 +246,42 @@ pub const Pipeline = struct {
     }
 
     fn createFixed(self: *Self) !void {
-        const bindingDescriptions = [_]vk.VertexInputBindingDescription{vk.VertexInputBindingDescription{
-            .binding = 0,
-            .stride = @sizeOf(Vertex),
-            .inputRate = .VERTEX,
-        }};
-        const attributeDescriptions = [2]vk.VertexInputAttributeDescription{
-            vk.VertexInputAttributeDescription{
-                .binding = 0,
-                .location = 0,
-                .format = .R32G32_SFLOAT,
-                .offset = @byteOffsetOf(Vertex, "pos"),
-            },
-            vk.VertexInputAttributeDescription{
-                .binding = 0,
-                .location = 1,
-                .format = .R32G32B32_SFLOAT,
-                .offset = @byteOffsetOf(Vertex, "color"),
-            },
-        };
+        var bindingDescriptions = std.ArrayList(vk.VertexInputBindingDescription).init(self.allocator);
+        var attributeDescriptions = std.ArrayList(vk.VertexInputAttributeDescription).init(self.allocator);
+
+        for (self.settings.inputs) |input, i| {
+            try bindingDescriptions.append(vk.VertexInputBindingDescription{
+                .binding = self.settings.inputs[i].binding_description.binding,
+                .stride = self.settings.inputs[i].binding_description.stride,
+                .inputRate = .VERTEX,
+            });
+
+            for (self.settings.inputs[i].attribute_descriptions) |desc, j| {
+                try attributeDescriptions.append(vk.VertexInputAttributeDescription{
+                    .binding = self.settings.inputs[i].binding_description.binding,
+                    .location = @intCast(u32, j),
+                    .format = self.settings.inputs[i].attribute_descriptions[j].format,
+                    .offset = self.settings.inputs[i].attribute_descriptions[j].offset,
+                });
+            }
+        }
+        
+        const bindingDescriptionsSlice = bindingDescriptions.toOwnedSlice();
+        bindingDescriptions.deinit();
+
+        const attributeDescriptionsSlice = attributeDescriptions.toOwnedSlice();
+        attributeDescriptions.deinit();
 
         self.vertex_input_info = vk.PipelineVertexInputStateCreateInfo{
-            .vertexBindingDescriptionCount = 1,
-            .pVertexBindingDescriptions = &bindingDescriptions,
+            .vertexBindingDescriptionCount = @intCast(u32, bindingDescriptionsSlice.len),
+            .pVertexBindingDescriptions = bindingDescriptionsSlice.ptr,
 
-            .vertexAttributeDescriptionCount = attributeDescriptions.len,
-            .pVertexAttributeDescriptions = &attributeDescriptions,
+            .vertexAttributeDescriptionCount = @intCast(u32, attributeDescriptionsSlice.len),
+            .pVertexAttributeDescriptions = attributeDescriptionsSlice.ptr,
         };
 
         self.input_assembly_info = vk.PipelineInputAssemblyStateCreateInfo{
-            .topology = .TRIANGLE_LIST,
+            .topology = self.settings.assembly.topology,
 
             .primitiveRestartEnable = vk.FALSE,
         };

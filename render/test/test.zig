@@ -1,4 +1,4 @@
-pub const zmath = @import("zetamath");
+pub const zm = @import("zetamath");
 usingnamespace @import("zetarender");
 
 const std = @import("std");
@@ -23,6 +23,26 @@ pub fn rtest() !void {
 fn vulkan_backend() !void {
     std.debug.warn("\n", .{});
 
+    const UniformBufferObject = packed struct {
+        model: zm.Mat44(f32),
+        view: zm.Mat44(f32),
+        proj: zm.Mat44(f32),
+    };
+
+    const Vertex = packed struct {
+        const Self = @This();
+
+        pos: zm.Vec2(f32),
+        color: zm.Vec3(f32),
+
+        pub fn new(pos: zm.Vec2(f32), color: zm.Vec3(f32)) Self {
+            return Self{
+                .pos = pos,
+                .color = color,
+            };
+        }
+    };
+
     var testWindow = windowing.Window.new("Vulkan Test", windowing.Size{ .width = 1280, .height = 720 }, .Vulkan);
     try testWindow.init();
     defer testWindow.deinit();
@@ -32,13 +52,21 @@ fn vulkan_backend() !void {
 
     var swapchain = backend.vulkan.Swapchain.new();
     var renderpass = backend.vulkan.RenderPass.new();
-    var pipeline = backend.vulkan.Pipeline.new(vert, frag);
+    const pipelineSettings = backend.vulkan.pipeline.Settings{
+        .inputs = &[_]backend.vulkan.pipeline.Settings.Input{
+            try backend.vulkan.pipeline.Settings.Input.init(Vertex, 0, std.heap.c_allocator),
+        },
+        .assembly = backend.vulkan.pipeline.Settings.Assembly{
+            .topology = .TRIANGLE_LIST
+        }
+    };
+    var pipeline = backend.vulkan.Pipeline.new(pipelineSettings, vert, frag);
 
-    var vertex1 = objects.VkVertex2d.new(zmath.Vec2(f32).new(-0.5,- 0.5), zmath.Vec3(f32).new(1.0, 0.0, 0.0));
-    var vertex2 = objects.VkVertex2d.new(zmath.Vec2(f32).new(0.5, -0.5), zmath.Vec3(f32).new(0.0, 1.0, 0.0));
-    var vertex3 = objects.VkVertex2d.new(zmath.Vec2(f32).new(0.5, 0.5), zmath.Vec3(f32).new(0.0, 0.0, 1.0));
-    var vertex4 = objects.VkVertex2d.new(zmath.Vec2(f32).new(-0.5, 0.5), zmath.Vec3(f32).new(0.0, 0.0, 0.0));
-    var vertexBuffer = backend.vulkan.buffer.StagedBuffer(objects.VkVertex2d, .Vertex).new(&[_]objects.VkVertex2d{vertex1, vertex2, vertex3, vertex4});
+    var vertex1 = Vertex.new(zm.Vec2(f32).new(-0.5,- 0.5), zm.Vec3(f32).new(1.0, 0.0, 0.0));
+    var vertex2 = Vertex.new(zm.Vec2(f32).new(0.5, -0.5), zm.Vec3(f32).new(0.0, 1.0, 0.0));
+    var vertex3 = Vertex.new(zm.Vec2(f32).new(0.5, 0.5), zm.Vec3(f32).new(0.0, 0.0, 1.0));
+    var vertex4 = Vertex.new(zm.Vec2(f32).new(-0.5, 0.5), zm.Vec3(f32).new(0.0, 0.0, 0.0));
+    var vertexBuffer = backend.vulkan.buffer.StagedBuffer(Vertex, .Vertex).new(&[_]Vertex{vertex1, vertex2, vertex3, vertex4});
 
     var indices = [_]u16{0, 1, 2, 2, 3, 0};
     var indexBuffer = backend.vulkan.buffer.StagedBuffer(u16, .Index).new(&indices);

@@ -43,4 +43,4 @@ pub fn Uniform(comptime T: type) type {
 
         }
     };
-};
+}

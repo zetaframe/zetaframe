@@ -10,10 +10,15 @@ const backend = @import("../backend.zig");
 
 pub const Gpu = @import("gpu.zig").Gpu;
 pub const RenderPass = @import("renderpass.zig").RenderPass;
+
+pub const pipeline = @import("pipeline.zig");
 pub const Pipeline = @import("pipeline.zig").Pipeline;
+
 const swapchain = @import("swapchain.zig");
 pub const Swapchain = swapchain.Swapchain;
+
 pub const Command = @import("command.zig").Command;
+
 pub const RenderCore = @import("rendercore.zig").RenderCore;
 
 pub const buffer = @import("buffer.zig");

@@ -166,7 +166,7 @@ const SwapchainSupportDetails = struct {
         };
     }
 
-    fn deinit(self: Self) void {
+    pub fn deinit(self: Self) void {
         self.formats.deinit();
         self.present_modes.deinit();
     }
