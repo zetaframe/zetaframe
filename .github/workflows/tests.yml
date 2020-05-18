@@ -14,6 +14,5 @@ jobs:
     - uses: goto-bus-stop/setup-zig@v1.2.3
       with:
         version: master
-    - run: |
-      zig build test-no-render
-      zig test core/src/lib2.zig
+    - run: zig build test-no-render
+    - run: zig test core/src/lib2.zig
