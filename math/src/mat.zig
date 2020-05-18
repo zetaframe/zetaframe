@@ -7,8 +7,7 @@ const Vec2 = vec.Vec2;
 const Vec3 = vec.Vec3;
 const Vec4 = vec.Vec4;
 
-fn MatMixin(comptime Self: type) type {
-    comptime const MatType = @typeInfo(@typeInfo(Self).Struct.fields[0].field_type).Struct.fields[0].field_type;
+fn MatMixin(comptime Self: type, comptime T: type) type {
     return struct {
         pub fn clone(self: *Self) Self {
             var result = Self.Zero;
@@ -34,7 +33,7 @@ fn MatMixin(comptime Self: type) type {
             return result;
         }
 
-        pub fn mulScalar(self: Self, other: MatType) Self {
+        pub fn mulScalar(self: Self, other: T) Self {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field| {
                 @field(result, field.name) = @field(self, field.name).mulScalar(other);
@@ -42,7 +41,7 @@ fn MatMixin(comptime Self: type) type {
             return result;
         }
 
-        pub fn divScalar(self: Self, other: MatType) Self {
+        pub fn divScalar(self: Self, other: T) Self {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field| {
                 @field(result, field.name) = @field(self, field.name).divScalar(other);
@@ -168,7 +167,7 @@ pub fn Mat44(comptime T: type) type {
             .w = Vec4(T).Zero,
         };
 
-        usingnamespace MatMixin(Self);
+        usingnamespace MatMixin(Self, T);
 
         pub fn new(x: Vec4(T), y: Vec4(T), z: Vec4(T), w: Vec4(T)) Self {
             return Self{
