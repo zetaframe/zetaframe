@@ -6,7 +6,9 @@ A `wip` zig game framework.
 
 ### core
 
-The core of all zetaframe applications. Easy integration of other modules.
+The core of all zetaframe applications.
+
+zetaframe is based around a Entity Component System (ECS).
 
 ### math
 
@@ -14,7 +16,7 @@ A vulkan and opengl compatible linear algebra library. `wip`
 
 ### render
 
-An expandable render api with vulkan and opengl backends. `wip`.
+An expandable render api with vulkan (and possible other) backends. `wip`.
 
 Will later include a system that can be added directly into `core`.
 
