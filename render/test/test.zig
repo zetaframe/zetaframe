@@ -58,6 +58,9 @@ fn vulkan_backend() !void {
         },
         .assembly = backend.vulkan.pipeline.Settings.Assembly{
             .topology = .TRIANGLE_LIST
+        },
+        .rasterizer = backend.vulkan.pipeline.Settings.Rasterizer{
+
         }
     };
     var pipeline = backend.vulkan.Pipeline.new(pipelineSettings, vert, frag);

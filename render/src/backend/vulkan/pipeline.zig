@@ -89,6 +89,7 @@ pub const Settings = struct {
 
     inputs: []Input,
     assembly: Assembly,
+    rasterizer: Rasterizer,
 };
 
 pub const Pipeline = struct {
