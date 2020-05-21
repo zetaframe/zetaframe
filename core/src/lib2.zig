@@ -14,7 +14,7 @@ const testing = std.testing;
 
 const builtin = @import("builtin");
 
-pub fn World(comptime ComponentTypes: []const type) type {
+pub fn World(comptime ComponentTypes: []const type, chunkSize: u32) type {
     return struct {
         const Self = @This();
 
@@ -26,7 +26,7 @@ pub fn World(comptime ComponentTypes: []const type) type {
     };
 }
 
-pub fn Archetype() type {
+pub fn Archetype(chunkSize: u32) type {
     return struct {
         const Self = @This();
         allocator: *Allocator,
@@ -62,9 +62,11 @@ pub fn Archetype() type {
     };
 }
 
-pub fn ArchetypeChunk() type {
+pub fn ArchetypeChunk(chunkSize: u32) type {
     return struct {
-
+        pub fn init() !void {
+            
+        }
     };
 }
 
@@ -86,7 +88,7 @@ test "ecs" {
         PositionComponent,
         VelocityComponent,
         AccelerationComponent,
-    }).init();
+    }, 4).init();
 }
 
 pub const AnyVecStore = struct {
@@ -98,8 +100,9 @@ pub const AnyVecStore = struct {
     len: usize,
 
     type_name: []const u8,
+    type_size: usize,
 
-    pub fn init(comptime T: type, allocator: *Allocator) !Self {
+    pub fn init(comptime T: type, allocator: *Allocator) Self {
         return Self{
             .allocator = allocator,
 
@@ -108,6 +111,20 @@ pub const AnyVecStore = struct {
             .len = 0,
 
             .type_name = @typeName(T),
+            .type_size = @bitSizeOf(T),
+        };
+    }
+
+    pub fn initCapacity(comptime T: type, capacity: usize, allocator: *Allocator) !Self {
+        return Self{
+            .allocator = allocator,
+
+            .data = try allocator.alloc(u8, @sizeOf(T) * capacity),
+            .data_len = @sizeOf(T) * capacity,
+            .len = capacity,
+
+            .type_name = @typeName(T),
+            .type_size = @bitSizeOf(T),
         };
     }
 
@@ -117,8 +134,9 @@ pub const AnyVecStore = struct {
 
     fn checkType(self: *Self, comptime T: type) bool {
         const nameT = @typeName(T);
+        const sizeT = @bitSizeOf(T);
 
-        return mem.eql(u8, self.type_name, nameT);
+        return mem.eql(u8, self.type_name, nameT) and self.type_size == sizeT;
     }
 
     pub fn append(self: *Self, comptime T: type, data: T) !void {
@@ -181,7 +199,7 @@ pub const AnyVecStore = struct {
 test "AnyVecStore" {
     warn("\n", .{});
 
-    var store = try AnyVecStore.init(u32, std.heap.page_allocator);
+    var store = AnyVecStore.init(u32, std.heap.page_allocator);
     defer store.deinit();
 
     try store.append(u32, 11111);
@@ -200,6 +218,16 @@ test "AnyVecStore" {
     testing.expect((try store.getIndex(u32, 1)) == 77777);
 
     testing.expect((try store.getIndexPtr(u32, 1)).* == 77777);
+
+    var store2 = try AnyVecStore.initCapacity(u32, 5, std.heap.page_allocator);
+    testing.expect(store2.len == 5);
+    testing.expect(store2.data_len == @sizeOf(u32) * 5);
+
+    try store2.append(u32, 11111);
+    testing.expect((try store2.getIndex(u32, 5)) == 11111);
+
+    try store2.setIndex(u32, 0, 77777);
+    testing.expect((try store2.getIndex(u32, 0)) == 77777);
 }
 
 pub const MultiVecStore = struct {
@@ -213,7 +241,7 @@ pub const MultiVecStore = struct {
 
     len: usize,
 
-    pub fn init(allocator: *Allocator) !Self {
+    pub fn init(allocator: *Allocator) Self {
         return Self{
             .allocator = allocator,
 
@@ -290,7 +318,7 @@ test "MultiVecStore" {
         pos: [3]f32,
     };
 
-    var store = try MultiVecStore.init(std.heap.page_allocator);
+    var store = MultiVecStore.init(std.heap.page_allocator);
     defer store.deinit();
 
     try store.append(u32, 11111);
