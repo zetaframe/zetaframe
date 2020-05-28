@@ -12,11 +12,11 @@ zetaframe is based around a Entity Component System (ECS).
 
 ### math
 
-A vulkan and opengl compatible linear algebra library. `wip`
+A vulkan compatible linear algebra library. `wip`
 
 ### render
 
-An expandable render api with vulkan (and possible other) backends. `wip`.
+An high-fidelity vulkan render api. `wip`.
 
 Will later include a system that can be added directly into `core`.
 

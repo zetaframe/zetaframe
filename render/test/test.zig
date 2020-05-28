@@ -7,7 +7,6 @@ pub fn rtest() !void {
     std.debug.warn("\n", .{});
 
     try vulkan_backend();
-    std.meta.refAllDecls(@This());
 }
 
 // test "window" {
@@ -43,42 +42,42 @@ fn vulkan_backend() !void {
         }
     };
 
-    var testWindow = windowing.Window.new("Vulkan Test", windowing.Size{ .width = 1280, .height = 720 }, .Vulkan);
+    var testWindow = windowing.Window.new("Vulkan Test", windowing.Size{ .width = 1280, .height = 720 });
     try testWindow.init();
     defer testWindow.deinit();
 
-    var vert = try backend.Shader.init(std.heap.page_allocator, "render/test/shaders/vulkan/vert.spv");
-    var frag = try backend.Shader.init(std.heap.page_allocator, "render/test/shaders/vulkan/frag.spv");
+    var vert = try backend.Shader.init(std.heap.page_allocator, "render/test/shaders/vert.spv");
+    var frag = try backend.Shader.init(std.heap.page_allocator, "render/test/shaders/frag.spv");
 
-    var swapchain = backend.vulkan.Swapchain.new();
-    var renderpass = backend.vulkan.RenderPass.new();
-    const pipelineSettings = backend.vulkan.pipeline.Settings{
-        .inputs = &[_]backend.vulkan.pipeline.Settings.Input{
-            try backend.vulkan.pipeline.Settings.Input.init(Vertex, 0, std.heap.c_allocator),
+    var swapchain = backend.Swapchain.new();
+    var renderpass = backend.RenderPass.new();
+    const pipelineSettings = backend.pipeline.Settings{
+        .inputs = &[_]backend.pipeline.Settings.Input{
+            try backend.pipeline.Settings.Input.init(Vertex, 0, std.heap.c_allocator),
         },
-        .assembly = backend.vulkan.pipeline.Settings.Assembly{
+        .assembly = backend.pipeline.Settings.Assembly{
             .topology = .TRIANGLE_LIST
         },
-        .rasterizer = backend.vulkan.pipeline.Settings.Rasterizer{
+        .rasterizer = backend.pipeline.Settings.Rasterizer{
 
         }
     };
-    var pipeline = backend.vulkan.Pipeline.new(pipelineSettings, vert, frag);
+    var pipeline = backend.Pipeline.new(pipelineSettings, vert, frag);
 
     var vertex1 = Vertex.new(zm.Vec2(f32).new(-0.5,- 0.5), zm.Vec3(f32).new(1.0, 0.0, 0.0));
     var vertex2 = Vertex.new(zm.Vec2(f32).new(0.5, -0.5), zm.Vec3(f32).new(0.0, 1.0, 0.0));
     var vertex3 = Vertex.new(zm.Vec2(f32).new(0.5, 0.5), zm.Vec3(f32).new(0.0, 0.0, 1.0));
     var vertex4 = Vertex.new(zm.Vec2(f32).new(-0.5, 0.5), zm.Vec3(f32).new(0.0, 0.0, 0.0));
-    var vertexBuffer = backend.vulkan.buffer.StagedBuffer(Vertex, .Vertex).new(&[_]Vertex{vertex1, vertex2, vertex3, vertex4});
+    var vertexBuffer = backend.buffer.StagedBuffer(Vertex, .Vertex).new(&[_]Vertex{vertex1, vertex2, vertex3, vertex4});
 
     var indices = [_]u16{0, 1, 2, 2, 3, 0};
-    var indexBuffer = backend.vulkan.buffer.StagedBuffer(u16, .Index).new(&indices);
+    var indexBuffer = backend.buffer.StagedBuffer(u16, .Index).new(&indices);
 
-    var command = backend.vulkan.Command.new(&vertexBuffer.buf, &indexBuffer.buf);
+    var command = backend.Command.new(&vertexBuffer.buf, &indexBuffer.buf);
 
-    var rendercore = backend.vulkan.RenderCore.new(swapchain, renderpass, pipeline, command);
+    var rendercore = backend.RenderCore.new(swapchain, renderpass, pipeline, command);
 
-    var vkbackend = backend.vulkan.VkBackend.new(std.heap.c_allocator, "Vulkan Test", &testWindow, rendercore);
+    var vkbackend = backend.VkBackend.new(std.heap.c_allocator, "Vulkan Test", &testWindow, rendercore);
     try vkbackend.init();
     defer vkbackend.deinit();
 
@@ -87,19 +86,3 @@ fn vulkan_backend() !void {
         try vkbackend.render();
     }
 }
-
-// test "opengl backend" {
-//     warn("\n", .{});
-
-//     var testWindow = windowing.Window.new("OpenGL Test", windowing.Size{ .width = 800, .height = 600 }, .OpenGL);
-//     try testWindow.init();
-//     defer testWindow.deinit();
-
-//     //var vert = try backend.Shader.init(std.heap.page_allocator, "test/shaders/opengl/vert.spv");
-//     //var frag = try backend.Shader.init(std.heap.page_allocator, "test/shaders/opengl/frag.spv");
-
-//     testWindow.update();
-//     testWindow.update();
-
-//     std.time.sleep(1 * std.time.ns_per_s);
-// }

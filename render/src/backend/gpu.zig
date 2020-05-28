@@ -2,14 +2,14 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
-const vk = @import("../../include/vk.zig");
+const vk = @import("../include/vk.zig");
 const VK_SUCCESS = vk.Result.SUCCESS;
 
-const glfw = @import("../../include/glfw.zig");
+const glfw = @import("../include/glfw.zig");
 
-const windowing = @import("../../windowing.zig");
+const windowing = @import("../windowing.zig");
 
-const backend = @import("../backend.zig");
+const shader = @import("shader.zig");
 
 const vkbackend = @import("backend.zig");
 const VulkanError = vkbackend.VulkanError;

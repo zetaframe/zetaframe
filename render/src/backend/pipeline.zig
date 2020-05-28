@@ -3,12 +3,12 @@ const trait = std.meta.trait;
 
 const Allocator = std.mem.Allocator;
 
-const windowing = @import("../../windowing.zig");
+const windowing = @import("../windowing.zig");
 
-const backend = @import("../backend.zig");
+const shader = @import("shader.zig");
 const VulkanError = @import("backend.zig").VulkanError;
 
-const vk = @import("../../include/vk.zig");
+const vk = @import("../include/vk.zig");
 const VK_SUCCESS = vk.enum_VkResult.VK_SUCCESS;
 
 const Gpu = @import("gpu.zig").Gpu;
@@ -105,11 +105,11 @@ pub const Pipeline = struct {
     swapchain_image_format: vk.Format,
     size: windowing.Size,
 
-    vert_shader: backend.Shader,
+    vert_shader: shader.Shader,
     vert_shader_module: vk.ShaderModule,
     vert_shader_stage_info: vk.PipelineShaderStageCreateInfo,
 
-    fragment_shader: backend.Shader,
+    fragment_shader: shader.Shader,
     fragment_shader_module: vk.ShaderModule,
     fragment_shader_stage_info: vk.PipelineShaderStageCreateInfo,
 
@@ -125,7 +125,7 @@ pub const Pipeline = struct {
 
     pipeline_layout: vk.PipelineLayout,
 
-    pub fn new(settings: Settings, vert_shader: backend.Shader, fragment_shader: backend.Shader) Self {
+    pub fn new(settings: Settings, vert_shader: shader.Shader, fragment_shader: shader.Shader) Self {
         return Self{
             .allocator = undefined,
 
