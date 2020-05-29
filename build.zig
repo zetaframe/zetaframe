@@ -16,7 +16,6 @@ pub fn build(b: *Builder) void {
     tests.addPackage(zf.renderpkg);
 
     tests.linkSystemLibrary("c");
-    tests.linkSystemLibrary("epoxy");
     tests.linkSystemLibrary("glfw");
     tests.linkSystemLibrary("vulkan");
 

@@ -38,7 +38,6 @@ pub fn addZetaModule(step: *LibExeObjStep, module: Module) void {
             step.addPackage(renderpkg);
 
             step.linkSystemLibrary("c");
-            step.linkSystemLibrary("epoxy");
             step.linkSystemLibrary("glfw");
             step.linkSystemLibrary("vulkan");
 
