@@ -1,6 +1,7 @@
 const std = @import("std");
 const math = std.math;
 const trait = std.meta.trait;
+const assert = std.debug.assert;
 
 const vec = @import("vec.zig");
 const Vec2 = vec.Vec2;
@@ -8,11 +9,37 @@ const Vec3 = vec.Vec3;
 const Vec4 = vec.Vec4;
 
 fn MatMixin(comptime Self: type, comptime T: type) type {
+    comptime const Vec = @typeInfo(Self).Struct.fields[0].field_type;
     return struct {
         pub fn clone(self: *Self) Self {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field| {
                 @field(result, field.name) = @field(self.*, field.name);
+            }
+            return result;
+        }
+
+        pub fn getIndex(self: *Self, comptime index: usize) Vec {
+            assert(index < 4);
+            return @field(self.*, @typeInfo(Self).Struct.fields[index].name);
+        }
+
+        pub fn getIndexPtr(self: *Self, comptime index: usize) *Vec {
+            assert(index < 4);
+            return &@field(self.*, @typeInfo(Self).Struct.fields[index].name);
+        }
+
+        pub fn setIndex(self: *Self, comptime index: usize, value: Vec) void {
+            assert(index < 4);
+            @field(self.*, @typeInfo(Self).Struct.fields[index].name) = value;
+        }
+
+        pub fn transpose(self: Self) Self {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field, i| {
+                inline for (@typeInfo(Vec).Struct.fields) |vec_field, j| {
+                    result.getIndexPtr(j).setIndex(i, @field(@field(self, field.name), vec_field.name));
+                }
             }
             return result;
         }
@@ -29,6 +56,17 @@ fn MatMixin(comptime Self: type, comptime T: type) type {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field| {
                 @field(result, field.name) = @field(self, field.name).sub(@field(other, field.name));
+            }
+            return result;
+        }
+
+        pub fn mul(self: Self, other: Self) Self {
+            var result = Self.Zero;
+            var selfTransposed = self.transpose();
+            inline for (@typeInfo(Self).Struct.fields) |self_field| {
+                inline for (@typeInfo(Self).Struct.fields) |other_field| {
+                    @field(@field(result, self_field.name), other_field.name) = @field(selfTransposed, self_field.name).dot(@field(other, other_field.name));
+                }
             }
             return result;
         }
@@ -51,6 +89,11 @@ fn MatMixin(comptime Self: type, comptime T: type) type {
     };
 }
 
+/// 2x2 column major matrix
+/// 
+///  xy
+/// x00
+/// y00
 pub fn Mat22(comptime T: type) type {
     if (!comptime trait.isNumber(T)) {
         @compileError("Mat22 type must be a number");
@@ -78,7 +121,7 @@ pub fn Mat22(comptime T: type) type {
             .y = Vec2(T).Zero,
         };
 
-        usingnamespace MatMixin(Self);
+        usingnamespace MatMixin(Self, T);
 
         pub fn new(x: Vec2(T), y: Vec2(T)) Self {
             return Self{
@@ -89,6 +132,12 @@ pub fn Mat22(comptime T: type) type {
     };
 }
 
+/// 3x3 column major matrix
+/// 
+///  xyz
+/// x000
+/// y000
+/// z000
 pub fn Mat33(comptime T: type) type {
     if (!comptime trait.isNumber(T)) {
         @compileError("Mat33 type must be a number");
@@ -120,7 +169,7 @@ pub fn Mat33(comptime T: type) type {
             .z = Vec3(T).Zero,
         };
 
-        usingnamespace MatMixin(Self);
+        usingnamespace MatMixin(Self, T);
 
         pub fn new(x: Vec3(T), y: Vec3(T), z: Vec3(T)) Self {
             return Self{
@@ -132,6 +181,13 @@ pub fn Mat33(comptime T: type) type {
     };
 }
 
+/// 4x4 column major matrix
+/// 
+///  xyzw
+/// x0000
+/// y0000
+/// z0000
+/// w0000
 pub fn Mat44(comptime T: type) type {
     if (!comptime trait.isNumber(T)) {
         @compileError("Mat44 type must be a number");
@@ -148,7 +204,7 @@ pub fn Mat44(comptime T: type) type {
         z: Vec4(T),
         w: Vec4(T),
 
-        pub const Identity = Self{  
+        pub const Identity = Self{
             .x = Vec4(T).new(1.0, 0.0, 0.0, 0.0),
             .y = Vec4(T).new(0.0, 1.0, 0.0, 0.0),
             .z = Vec4(T).new(0.0, 0.0, 1.0, 0.0),

@@ -1,9 +1,9 @@
 const std = @import("std");
 const math = std.math;
 const trait = std.meta.trait;
+const assert = std.debug.assert;
 
-fn VecMixin(comptime Self: type) type {
-    comptime const VecType = @typeInfo(Self).Struct.fields[0].field_type;
+fn VecMixin(comptime Self: type, comptime T: type) type {
     return struct {
         pub fn clone(self: *Self) Self {
             var result = Self.Zero;
@@ -11,6 +11,24 @@ fn VecMixin(comptime Self: type) type {
                 @field(result, field.name) = @field(self.*, field.name);
             }
             return result;
+        }
+
+        pub fn neg(self: Self) T {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                @field(result, field.name) = -@field(self, field.name);
+            }
+            return result;
+        }
+
+        pub fn getIndex(self: *Self, index: usize) T {
+            assert(index < 4);
+            return @field(self.*, @typeInfo(Self).Struct.fields[index].name);
+        }
+
+        pub fn setIndex(self: *Self, comptime index: usize, value: T) void {
+            assert(index < 4);
+            @field(self.*, @typeInfo(Self).Struct.fields[index].name) = value;
         }
 
         pub fn add(self: Self, other: Self) Self {
@@ -37,7 +55,7 @@ fn VecMixin(comptime Self: type) type {
             return result;
         }
 
-        pub fn mulScalar(self: Self, other: VecType) Self {
+        pub fn mulScalar(self: Self, other: T) Self {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field| {
                 @field(result, field.name) = @field(self, field.name) * other;
@@ -53,7 +71,7 @@ fn VecMixin(comptime Self: type) type {
             return result;
         }
 
-        pub fn divScalar(self: Self, other: VecType) Self {
+        pub fn divScalar(self: Self, other: T) Self {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field| {
                 @field(result, field.name) = @field(self, field.name) / other;
@@ -61,22 +79,22 @@ fn VecMixin(comptime Self: type) type {
             return result;
         }
 
-        pub fn mag(self: Self) VecType {
+        pub fn mag(self: Self) T {
             return math.sqrt(self.magSqr());
         }
 
-        pub fn magSqr(self: Self) VecType {
-            var result: VecType = 0;
+        pub fn magSqr(self: Self) T {
+            var result: T = 0;
             inline for (@typeInfo(Self).Struct.fields) |field| {
                 result += @field(self, field.name) * @field(self, field.name);
             }
             return result;
         }
 
-        pub fn neg(self: Self) VecType {
-            var result = Self.Zero;
+        pub fn dot(self: Self, other: Self) T {
+            var result: T = 0;
             inline for (@typeInfo(Self).Struct.fields) |field| {
-                @field(result, field.name) = -@field(self, field.name);
+                result += @field(self, field.name) * @field(other, field.name);
             }
             return result;
         }
@@ -104,12 +122,19 @@ pub fn Vec2(comptime T: type) type {
         pub const One = Self{ .x = 1, .y = 1 };
         pub const Zero = Self{ .x = 0, .y = 0 };
 
-        usingnamespace VecMixin(Self);
+        usingnamespace VecMixin(Self, T);
 
         pub fn new(x: T, y: T) Self {
             return Self{
                 .x = x,
                 .y = y,
+            };
+        }
+
+        pub fn newFromVec3(other: Vec3) Self {
+            return Self{
+                .x = other.x,
+                .y = other.y,
             };
         }
     };
@@ -139,7 +164,7 @@ pub fn Vec3(comptime T: type) type {
         pub const One = Self{ .x = 1, .y = 1, .z = 1 };
         pub const Zero = Self{ .x = 0, .y = 0, .z = 0 };
 
-        usingnamespace VecMixin(Self);
+        usingnamespace VecMixin(Self, T);
 
         pub fn new(x: T, y: T, z: T) Self {
             return Self{
@@ -154,6 +179,14 @@ pub fn Vec3(comptime T: type) type {
                 .x = other.x,
                 .y = other.y,
                 .z = 0,
+            };
+        }
+
+        pub fn newFromVec4(other: Vec4) Self {
+            return Self{
+                .x = other.x,
+                .y = other.y,
+                .z = other.z,
             };
         }
     };
@@ -186,7 +219,7 @@ pub fn Vec4(comptime T: type) type {
         pub const One = Self{ .x = 1, .y = 1, .z = 1, .w = 1 };
         pub const Zero = Self{ .x = 0, .y = 0, .z = 0, .w = 0 };
 
-        usingnamespace VecMixin(Self);
+        usingnamespace VecMixin(Self, T);
 
         pub fn new(x: T, y: T, z: T, w: T) Self {
             return Self{
