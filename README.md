@@ -12,7 +12,7 @@ zetaframe is based around a Entity Component System (ECS).
 
 ### math
 
-A vulkan compatible linear algebra library. `wip`
+A glsl compatible linear algebra library. `wip`
 
 ### render
 
