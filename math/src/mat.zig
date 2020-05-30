@@ -102,7 +102,7 @@ pub fn Mat22(comptime T: type) type {
         @compileError("Mat22 type cannot be unsigned");
     }
 
-    return packed struct {
+    return extern struct {
         const Self = @This();
 
         x: Vec2(T),
@@ -146,7 +146,7 @@ pub fn Mat33(comptime T: type) type {
         @compileError("Mat33 type cannot be unsigned");
     }
 
-    return packed struct {
+    return extern struct {
         const Self = @This();
 
         x: Vec3(T),
@@ -196,7 +196,7 @@ pub fn Mat44(comptime T: type) type {
         @compileError("Mat44 type cannot be unsigned");
     }
 
-    return packed struct {
+    return extern struct {
         const Self = @This();
 
         x: Vec4(T),

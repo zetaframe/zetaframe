@@ -98,6 +98,33 @@ fn VecMixin(comptime Self: type, comptime T: type) type {
             }
             return result;
         }
+
+        pub fn min(self: Self, other: Self) Self {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                @field(result, field.name) = math.min(@field(self, field.name), @field(other, field.name));
+            }
+        }
+
+        pub fn max(self: Self, other: Self) Self {
+            var result = Self.Zero;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                @field(result, field.name) = math.max(@field(self, field.name), @field(other, field.name));
+            }
+        }
+
+        pub fn dist(self: Self) T {
+            return math.sqrt(self.distSqr());
+        }
+
+        pub fn distSqr(self: Self, other: Self) T {
+            var result: T = 0;
+            inline for (@typeInfo(Self).Struct.fields) |field| {
+                var d = @field(self, field.name) - @field(other, field.name);
+                result += d * d;
+            }
+            return result;
+        }
     };
 }
 
@@ -109,7 +136,7 @@ pub fn Vec2(comptime T: type) type {
         @compileError("Vec2 type cannot be unsigned");
     }
 
-    return packed struct {
+    return extern struct {
         const Self = @This();
 
         x: T,
@@ -148,7 +175,7 @@ pub fn Vec3(comptime T: type) type {
         @compileError("Vec3 type cannot be unsigned");
     }
 
-    return packed struct {
+    return extern struct {
         const Self = @This();
 
         x: T,
@@ -174,11 +201,11 @@ pub fn Vec3(comptime T: type) type {
             };
         }
 
-        pub fn newFromVec2(other: Vec2) Self {
+        pub fn newFromVec2(other: Vec2, z: T) Self {
             return Self{
                 .x = other.x,
                 .y = other.y,
-                .z = 0,
+                .z = z,
             };
         }
 
@@ -200,7 +227,7 @@ pub fn Vec4(comptime T: type) type {
         @compileError("Vec4 type cannot be unsigned");
     }
 
-    return packed struct {
+    return extern struct {
         const Self = @This();
 
         x: T,
@@ -230,21 +257,21 @@ pub fn Vec4(comptime T: type) type {
             };
         }
 
-        pub fn newFromVec2(other: Vec2) Self {
+        pub fn newFromVec2(other: Vec2, z: T, w: T) Self {
             return Self{
                 .x = other.x,
                 .y = other.y,
-                .z = 0,
-                .w = 0,
+                .z = z,
+                .w = w,
             };
         }
 
-        pub fn newFromVec3(other: Vec3) Self {
+        pub fn newFromVec3(other: Vec3, w: T) Self {
             return Self{
                 .x = other.x,
                 .y = other.y,
                 .z = other.z,
-                .w = 0,
+                .w = w,
             };
         }
     };
