@@ -5,7 +5,7 @@ const Allocator = std.mem.Allocator;
 const testing = std.testing;
 const panic = std.debug.panic;
 
-const windowing = @import("../../windowing.zig");
+const windowing = @import("../windowing.zig");
 const shader = @import("shader.zig");
 
 pub const Shader = @import("shader.zig").Shader;
@@ -13,7 +13,6 @@ pub const Shader = @import("shader.zig").Shader;
 pub const Gpu = @import("gpu.zig").Gpu;
 pub const RenderPass = @import("renderpass.zig").RenderPass;
 
-pub const pipeline = @import("pipeline.zig");
 pub const Pipeline = @import("pipeline.zig").Pipeline;
 
 const swapchain = @import("swapchain.zig");

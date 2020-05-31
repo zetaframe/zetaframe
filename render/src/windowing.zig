@@ -26,8 +26,6 @@ pub const Window = struct {
         return Window{
             .window = undefined,
 
-            .backend_type = backendType,
-
             .name = name,
             .size = windowSize,
         };

@@ -13,86 +13,84 @@ const VK_SUCCESS = vk.enum_VkResult.VK_SUCCESS;
 
 const Gpu = @import("gpu.zig").Gpu;
 
-pub const Settings = struct {
-    pub const Input = struct {
-        pub const BindingDescription = struct {
-            binding: u32,
-            stride: u32,
-        };
-
-        pub const AttributeDescription = struct {
-            format: vk.Format,
-            offset: u32,
-        };
-
-        const Self = @This();
-
-        binding_description: BindingDescription,
-        attribute_descriptions: []AttributeDescription,
-
-        pub fn init(comptime T: type, binding: u32, allocator: *Allocator) !Self {
-            if (comptime !trait.is(.Struct)(T)) {
-                @compileError("Vertex Input Type must be a packed struct");
-            }
-            if (comptime !trait.isPacked(T)) {
-                @compileError("Vertex Input Type must be a packed struct");
-            }
-
-            var attributeDescriptions = std.ArrayList(AttributeDescription).init(allocator);
-
-            inline for (@typeInfo(T).Struct.fields) |field, i| {
-                var format: vk.Format = undefined;
-                switch(@typeInfo(field.field_type).Struct.fields[0].field_type) {
-                    f32 => switch (@typeInfo(field.field_type).Struct.fields.len) {
-                        1 => format = .R32_SFLOAT,
-                        2 => format = .R32G32_SFLOAT,
-                        3 => format = .R32G32B32_SFLOAT,
-                        4 => format = .R32G32B32A32_SFLOAT,
-                        else => @compileError("Invalid Type for Vertex Input"),
-                    },
-                    i32 => switch (@typeInfo(field.field_type).Struct.fields.len) {
-                        1 => format = .R32_SINT,
-                        2 => format = .R32G32_SINT,
-                        3 => format = .R32G32B32_SINT,
-                        4 => format = .R32G32B32A32_SINT,
-                        else => @compileError("Invalid Type for Vertex Input"),
-                    },
-                    else => @compileError("Invalid Type for Vertex Input"),
-                }
-                try attributeDescriptions.append(AttributeDescription{
-                    .format = format,
-                    .offset = @intCast(u32, @byteOffsetOf(T, field.name)),
-                });
-            }
-
-            const ret = Self{
-                .binding_description = BindingDescription{
-                    .binding = binding,
-                    .stride = @sizeOf(T),
-                },
-                .attribute_descriptions = attributeDescriptions.toOwnedSlice(),
+pub const Pipeline = struct {
+    pub const Settings = struct {
+        pub const Input = struct {
+            pub const BindingDescription = struct {
+                binding: u32,
+                stride: u32,
             };
 
-            attributeDescriptions.deinit();
-            
-            return ret;
-        }
+            pub const AttributeDescription = struct {
+                format: vk.Format,
+                offset: u32,
+            };
+
+            const Self = @This();
+
+            binding_description: BindingDescription,
+            attribute_descriptions: []AttributeDescription,
+
+            pub fn init(comptime T: type, binding: u32, allocator: *Allocator) !Self {
+                if (comptime !trait.is(.Struct)(T)) {
+                    @compileError("Vertex Input Type must be a packed struct");
+                }
+                if (comptime !trait.isPacked(T)) {
+                    @compileError("Vertex Input Type must be a packed struct");
+                }
+
+                var attributeDescriptions = std.ArrayList(AttributeDescription).init(allocator);
+
+                inline for (@typeInfo(T).Struct.fields) |field, i| {
+                    var format: vk.Format = undefined;
+                    switch (@typeInfo(field.field_type).Struct.fields[0].field_type) {
+                        f32 => switch (@typeInfo(field.field_type).Struct.fields.len) {
+                            1 => format = .R32_SFLOAT,
+                            2 => format = .R32G32_SFLOAT,
+                            3 => format = .R32G32B32_SFLOAT,
+                            4 => format = .R32G32B32A32_SFLOAT,
+                            else => @compileError("Invalid Type for Vertex Input"),
+                        },
+                        i32 => switch (@typeInfo(field.field_type).Struct.fields.len) {
+                            1 => format = .R32_SINT,
+                            2 => format = .R32G32_SINT,
+                            3 => format = .R32G32B32_SINT,
+                            4 => format = .R32G32B32A32_SINT,
+                            else => @compileError("Invalid Type for Vertex Input"),
+                        },
+                        else => @compileError("Invalid Type for Vertex Input"),
+                    }
+                    try attributeDescriptions.append(AttributeDescription{
+                        .format = format,
+                        .offset = @intCast(u32, @byteOffsetOf(T, field.name)),
+                    });
+                }
+
+                const ret = Self{
+                    .binding_description = BindingDescription{
+                        .binding = binding,
+                        .stride = @sizeOf(T),
+                    },
+                    .attribute_descriptions = attributeDescriptions.toOwnedSlice(),
+                };
+
+                attributeDescriptions.deinit();
+
+                return ret;
+            }
+        };
+
+        pub const Assembly = struct {
+            topology: vk.PrimitiveTopology,
+        };
+
+        pub const Rasterizer = struct {};
+
+        inputs: []Input,
+        assembly: Assembly,
+        rasterizer: Rasterizer,
     };
 
-    pub const Assembly = struct {
-        topology: vk.PrimitiveTopology,
-    };
-
-    pub const Rasterizer = struct {
-
-    };
-
-    inputs: []Input,
-    assembly: Assembly,
-    rasterizer: Rasterizer,
-};
-
-pub const Pipeline = struct {
     const Self = @This();
     allocator: *Allocator,
 
@@ -225,7 +223,7 @@ pub const Pipeline = struct {
         self.vert_shader_module = try vk.CreateShaderModule(self.gpu.device, vertCreateInfo, null);
 
         self.vert_shader_stage_info = vk.PipelineShaderStageCreateInfo{
-            .stage = vk.ShaderStageFlags{.vertex = true},
+            .stage = vk.ShaderStageFlags{ .vertex = true },
             .module = self.vert_shader_module,
             .pName = "main",
         };
@@ -238,7 +236,7 @@ pub const Pipeline = struct {
         self.fragment_shader_module = try vk.CreateShaderModule(self.gpu.device, fragCreateInfo, null);
 
         self.fragment_shader_stage_info = vk.PipelineShaderStageCreateInfo{
-            .stage = vk.ShaderStageFlags{.fragment = true},
+            .stage = vk.ShaderStageFlags{ .fragment = true },
             .module = self.fragment_shader_module,
             .pName = "main",
         };
@@ -266,7 +264,7 @@ pub const Pipeline = struct {
                 });
             }
         }
-        
+
         const bindingDescriptionsSlice = bindingDescriptions.toOwnedSlice();
         bindingDescriptions.deinit();
 
@@ -304,7 +302,7 @@ pub const Pipeline = struct {
 
             .lineWidth = 1.0,
 
-            .cullMode = vk.CullModeFlags{.back = true},
+            .cullMode = vk.CullModeFlags{ .back = true },
             .frontFace = .CLOCKWISE,
 
             .depthBiasEnable = vk.FALSE,
@@ -316,7 +314,7 @@ pub const Pipeline = struct {
         self.multisampling_info = vk.PipelineMultisampleStateCreateInfo{
             .sampleShadingEnable = vk.FALSE,
 
-            .rasterizationSamples = vk.SampleCountFlags{.t1 = true},
+            .rasterizationSamples = vk.SampleCountFlags{ .t1 = true },
 
             .minSampleShading = 0,
             .pSampleMask = null,
@@ -326,7 +324,7 @@ pub const Pipeline = struct {
         };
 
         const colorBlendAttachments = [_]vk.PipelineColorBlendAttachmentState{vk.PipelineColorBlendAttachmentState{
-            .colorWriteMask = vk.ColorComponentFlags{.r = true, .g = true, .b = true, .a = true},
+            .colorWriteMask = vk.ColorComponentFlags{ .r = true, .g = true, .b = true, .a = true },
             .blendEnable = vk.FALSE,
 
             .srcColorBlendFactor = .ZERO,

@@ -9,32 +9,22 @@ pub fn rtest() !void {
     try vulkan_backend();
 }
 
-// test "window" {
-//     warn("\n", .{});
-
-//     var testWindow = windowing.Window.new("Window Test", windowing.Size{ .width = 800, .height = 600 }, .None);
-//     try testWindow.init();
-//     defer testWindow.deinit();
-
-//     std.time.sleep(1 * std.time.ns_per_s);
-// }
-
 fn vulkan_backend() !void {
     std.debug.warn("\n", .{});
 
     const UniformBufferObject = packed struct {
-        model: zm.Mat44(f32),
-        view: zm.Mat44(f32),
-        proj: zm.Mat44(f32),
+        model: zm.Mat44f,
+        view: zm.Mat44f,
+        proj: zm.Mat44f,
     };
 
     const Vertex = packed struct {
         const Self = @This();
 
-        pos: zm.Vec2(f32),
-        color: zm.Vec3(f32),
+        pos: zm.Vec2f,
+        color: zm.Vec3f,
 
-        pub fn new(pos: zm.Vec2(f32), color: zm.Vec3(f32)) Self {
+        pub fn new(pos: zm.Vec2f, color: zm.Vec3f) Self {
             return Self{
                 .pos = pos,
                 .color = color,
@@ -51,23 +41,23 @@ fn vulkan_backend() !void {
 
     var swapchain = backend.Swapchain.new();
     var renderpass = backend.RenderPass.new();
-    const pipelineSettings = backend.pipeline.Settings{
-        .inputs = &[_]backend.pipeline.Settings.Input{
-            try backend.pipeline.Settings.Input.init(Vertex, 0, std.heap.c_allocator),
+    const pipelineSettings = backend.Pipeline.Settings{
+        .inputs = &[_]backend.Pipeline.Settings.Input{
+            try backend.Pipeline.Settings.Input.init(Vertex, 0, std.heap.c_allocator),
         },
-        .assembly = backend.pipeline.Settings.Assembly{
+        .assembly = backend.Pipeline.Settings.Assembly{
             .topology = .TRIANGLE_LIST
         },
-        .rasterizer = backend.pipeline.Settings.Rasterizer{
+        .rasterizer = backend.Pipeline.Settings.Rasterizer{
 
         }
     };
     var pipeline = backend.Pipeline.new(pipelineSettings, vert, frag);
 
-    var vertex1 = Vertex.new(zm.Vec2(f32).new(-0.5,- 0.5), zm.Vec3(f32).new(1.0, 0.0, 0.0));
-    var vertex2 = Vertex.new(zm.Vec2(f32).new(0.5, -0.5), zm.Vec3(f32).new(0.0, 1.0, 0.0));
-    var vertex3 = Vertex.new(zm.Vec2(f32).new(0.5, 0.5), zm.Vec3(f32).new(0.0, 0.0, 1.0));
-    var vertex4 = Vertex.new(zm.Vec2(f32).new(-0.5, 0.5), zm.Vec3(f32).new(0.0, 0.0, 0.0));
+    var vertex1 = Vertex.new(zm.Vec2f.new(-0.5,- 0.5), zm.Vec3f.new(1.0, 0.0, 0.0));
+    var vertex2 = Vertex.new(zm.Vec2f.new(0.5, -0.5), zm.Vec3f.new(0.0, 1.0, 0.0));
+    var vertex3 = Vertex.new(zm.Vec2f.new(0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 1.0));
+    var vertex4 = Vertex.new(zm.Vec2f.new(-0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 0.0));
     var vertexBuffer = backend.buffer.StagedBuffer(Vertex, .Vertex).new(&[_]Vertex{vertex1, vertex2, vertex3, vertex4});
 
     var indices = [_]u16{0, 1, 2, 2, 3, 0};

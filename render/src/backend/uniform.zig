@@ -20,7 +20,7 @@ pub const Uniform = struct {
       
     pub fn new(comptime T: type, allocator: *Allocator) Self {
         
-
+        
 
         return Self{
             .allocator = undefined,
