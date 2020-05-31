@@ -192,9 +192,8 @@ pub fn EntityBuilder(comptime entityT: type, comptime storageT: type, comptime c
             };
         }
 
-        pub fn withComponent(self: *Self, component: componentT) Self {
+        pub fn withComponent(self: Self, component: componentT) Self {
             _ = self.components.put(component, {}) catch null;
-            //self.world.*.component_storages[@enumToInt(component)].add(self.entity, component);
             return Self {
                 .allocator = self.allocator,
                 .world = self.world,
