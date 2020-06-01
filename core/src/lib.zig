@@ -12,413 +12,519 @@ const trait = std.meta.trait;
 const builtin = @import("builtin");
 
 // ECS
-pub fn World(comptime entityT: type, comptime storageT: type, comptime componentT: type) type {
-    if (comptime !trait.isUnsignedInt(entityT)) {
-        @compileError("Entity type '" ++ @typeName(entityT) ++ "' must be an unsigned int.");
+pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
+    if (comptime !trait.isUnsignedInt(IdType)) {
+        @compileError("Id type '" ++ @typeName(IdType) ++ "' must be an unsigned int.");
     }
-    if (comptime @mod(@typeInfo(entityT).Int.bits, 2) != 0) {
-        @compileError("Entity type must be divisible by two");
-    }
-
-    if (comptime !trait.isUnsignedInt(storageT)) {
-        @compileError("Storage ID type '" ++ @typeName(entityT) ++ "' must be an unsigned int.");
-    }
-    if (comptime @mod(@typeInfo(storageT).Int.bits, 2) != 0) {
-        @compileError("Storage ID type must be divisible by two");
-    }
-
-    if (comptime !trait.is(.Union)(componentT)) {
-        @compileError("Component Type must be a union representing all used component types");
+    if (comptime @mod(@typeInfo(IdType).Int.bits, 2) != 0) {
+        @compileError("Id type must be divisible by two");
     }
 
     return struct {
         pub const Entity = struct {
-            id: entityT,
-            internal: entityT,
+            id: IdType,
+            internal: IdType,
         };
 
-        pub const WorldComponentStorage = ComponentStorage(entityT, storageT, componentT);
+        pub const World = struct {
+            const Self = @This();
+            allocator: *Allocator,
 
-        const Self = @This();
-        allocator: *Allocator,
+            //----- Entities
+            entities: []?Entity,
+            current_entityid: IdType = 0,
+            entities_deleted: IdType = 0,
+            next_recycleid: ?IdType = null,
 
-        //----- Entities
-        entities: []?Entity,
-        current_entityid: entityT = 0,
-        entities_deleted: entityT = 0,
-        next_recycleid: ?entityT = null,
+            //----- Components
+            component_storages: MultiVecStore,
+            component_map: std.StringHashMap(IdType),
 
-        //----- Components
-        component_storages: []WorldComponentStorage,
+            //----- Systems
+            systems: std.AutoHashMap(*System, void),
+            current_systemid: IdType = 0,
 
-        //----- Systems
-        systems: std.AutoHashMap(*System, void),
-        current_systemid: storageT = 0,
+            //----- Resources
 
-        //----- Resources
+            pub fn init(allocator: *Allocator) !Self {
+                var entities = try allocator.alloc(?Entity, math.maxInt(IdType));
+                errdefer allocator.free(entities);
 
-        pub fn init(allocator: *Allocator) !Self {
-            var entities = try allocator.alloc(?Entity, math.maxInt(entityT));
-            errdefer allocator.free(entities);
+                var component_storages = MultiVecStore.init(allocator);
 
-            var component_storages = try allocator.alloc(WorldComponentStorage, @typeInfo(componentT).Union.fields.len);
-            errdefer allocator.free(component_storages);
+                var component_map = std.StringHashMap(IdType).init(allocator);
 
-            var systems = std.AutoHashMap(*System, void).init(allocator);
+                inline for (CompTypes) |T, i| {
+                    var storage = try ComponentStorage(T).init(allocator, @intCast(IdType, i));
+                    try component_storages.append(ComponentStorage(T), storage);
+                    try component_map.putNoClobber(@typeName(T), i);
+                }
 
-            var i: usize = 0;
-            while (i < @typeInfo(componentT).Union.fields.len) {
-                var storage = try WorldComponentStorage.init(allocator, @intCast(storageT, i));
-                component_storages[i] = storage;
-                i += 1;
+                var systems = std.AutoHashMap(*System, void).init(allocator);
+
+                return Self{
+                    .allocator = allocator,
+
+                    .entities = entities,
+
+                    .component_storages = component_storages,
+                    .component_map = component_map,
+
+                    .systems = systems,
+                };
             }
 
-            return Self{
-                .allocator = allocator,
+            pub fn deinit(self: Self) void {
+                self.allocator.free(self.entities);
 
-                .entities = entities,
-                .component_storages = component_storages,
-                .systems = systems,
-            };
-        }
+                self.component_storages.deinit();
+                self.component_map.deinit();
 
-        pub fn deinit(self: Self) void {
-            self.allocator.free(self.entities);
-            self.allocator.free(self.component_storages);
-            self.systems.deinit();
-        }
+                self.systems.deinit();
+            }
 
-        //----- Entities
-        pub fn createEntity(self: *Self) EntityBuilder(entityT, storageT, componentT) {
-            if (self.entities_deleted == 0) {
-                const entity = Entity{
-                    .id = self.current_entityid,
-                    .internal = self.current_entityid,
-                };
-                self.entities[self.current_entityid] = entity;
-
-                self.current_entityid += 1;
-
-                return EntityBuilder(entityT, storageT, componentT).init(self.allocator, self, entity);
-            } else {
-                if (self.entities[self.next_recycleid.?] == null) {
-                    const entity = Entity{
-                        .id = self.next_recycleid.?,
-                        .internal = self.next_recycleid.?,
+            //----- Entities
+            pub fn createEntity(self: *Self, comptime components: var) !Entity {
+                var entity: Entity = undefined;
+                if (self.entities_deleted == 0) {
+                    entity = Entity{
+                        .id = self.current_entityid,
+                        .internal = self.current_entityid,
                     };
+                    self.entities[self.current_entityid] = entity;
 
-                    self.next_recycleid = null;
-                    self.entities[entity.id] = entity;
-
-                    self.entities_deleted -= 1;
-
-                    return EntityBuilder(entityT, storageT, componentT).init(self.allocator, self, entity);
+                    self.current_entityid += 1;
                 } else {
-                    const entity = Entity{
+                    if (self.entities[self.next_recycleid.?] == null) {
+                        entity = Entity{
+                            .id = self.next_recycleid.?,
+                            .internal = self.next_recycleid.?,
+                        };
+
+                        self.next_recycleid = null;
+                        self.entities[entity.id] = entity;
+
+                        self.entities_deleted -= 1;
+                    } else {
+                        entity = Entity{
+                            .id = self.next_recycleid.?,
+                            .internal = self.next_recycleid.?,
+                        };
+
+                        self.next_recycleid = self.entities[entity.id].?.id;
+                        self.entities[entity.id] = entity;
+
+                        self.entities_deleted -= 1;
+                    }
+                }
+
+                inline for (components) |comp| {
+                    var index = self.component_map.getValue(@typeName(@TypeOf(comp))) orelse return error.ComponentDoesNotExist;
+
+                    _ = try (try self.component_storages.getIndexPtr(ComponentStorage(@TypeOf(comp)), index)).add(entity, comp);
+                }
+
+                return entity;
+            }
+
+            pub fn deleteEntity(self: *Self, entity: Entity) !void {
+                if (self.next_recycleid == null) {
+                    self.entities[entity.id] = null;
+                    self.next_recycleid = entity.id;
+                } else {
+                    self.entities[entity.id] = Entity{
                         .id = self.next_recycleid.?,
-                        .internal = self.next_recycleid.?,
+                        .internal = entity.id,
                     };
+                    self.next_recycleid = entity.id;
+                }
 
-                    self.next_recycleid = self.entities[entity.id].?.id;
-                    self.entities[entity.id] = entity;
+                self.entities_deleted += 1;
 
-                    self.entities_deleted -= 1;
-
-                    return EntityBuilder(entityT, storageT, componentT).init(self.allocator, self, entity);
+                inline for (CompTypes) |T, i| {
+                    _ = (try self.component_storages.getIndexPtr(ComponentStorage(T), i)).remove(entity) catch null;
                 }
             }
-        }
 
-        pub fn deleteEntity(self: *Self, entity: Entity) !void {
-            if (self.next_recycleid == null) {
-                self.entities[entity.id] = null;
-                self.next_recycleid = entity.id;
-            } else {
-                self.entities[entity.id] = Entity{
-                    .id = self.next_recycleid.?,
-                    .internal = entity.id,
+            pub fn doesEntityExist(self: *Self, entity: Entity) bool {
+                if (entity.id <= self.entities.len) return true else return false;
+            }
+
+            pub fn isEntityAlive(self: *Self, entity: Entity) bool {}
+
+            //----- Components
+
+            //----- Systems
+            pub fn registerSystem(self: *Self, system: *System) !void {
+                _ = try self.systems.put(system, {});
+            }
+
+            pub fn run(self: *Self) void {
+                var iter = self.systems.iterator();
+                while (iter.next()) |system| {
+                    system.key.run();
+                }
+            }
+
+            //----- Resources.
+        };
+
+        pub const EntityBuilder = struct {
+            const Self = @This();
+            allocator: *Allocator,
+            world: *World,
+
+            entity: Entity,
+            components: std.AutoHashMap(componentT, void),
+
+            pub fn init(allocator: *Allocator, world: *World, entity: Entity) Self {
+                return Self{
+                    .allocator = allocator,
+                    .world = world,
+
+                    .entity = entity,
+                    .components = std.AutoHashMap(componentT, void).init(allocator),
                 };
-                self.next_recycleid = entity.id;
             }
 
-            self.entities_deleted += 1;
+            pub fn withComponent(self: *Self, component: componentT) Self {
+                _ = self.components.put(component, {}) catch null;
+                return Self{
+                    .allocator = self.allocator,
+                    .world = self.world,
 
-            for (self.component_storages) |*storage| {
-                _ = storage.remove(entity) catch null;
+                    .entity = self.entity,
+                    .components = self.components,
+                };
             }
-        }
 
-        pub fn doesEntityExist(self: *Self, entity: Entity) bool {
-            if (entity.id <= self.entities.len) return true else return false;
-        }
-
-        pub fn isEntityAlive(self: *Self, entity: Entity) bool {}
-
-        //----- Components
-
-        //----- Systems
-        pub fn registerSystem(self: *Self, system: *System) !void {
-            _ = try self.systems.put(system, {});
-        }
-
-        pub fn run(self: *Self) void {
-            var iter = self.systems.iterator();
-            while (iter.next()) |system| {
-                system.key.run();
+            pub fn build(self: *Self) !Entity {
+                var iter = self.components.iterator();
+                while (iter.next()) |component| {
+                    _ = try self.world.*.component_storages[@enumToInt(component.key)].add(self.entity, component.key);
+                }
+                self.components.deinit();
+                return self.entity;
             }
-        }
+        };
 
-        //----- Resources.
-    };
-}
+        pub fn ComponentStorage(comptime CompType: type) type {
+            return struct {
+                const Self = @This();
+                allocator: *Allocator,
+                component_id: IdType,
 
-pub fn EntityBuilder(comptime entityT: type, comptime storageT: type, comptime componentT: type) type {
-    return struct {
-        const Self = @This();
-        const Entity = World(entityT, storageT, componentT).Entity;
-        allocator: *Allocator,
-        world: *World(entityT, storageT, componentT),
+                dense: std.ArrayList(IdType),
+                dense_len: IdType = 0,
+                sparse: std.ArrayList(IdType),
+                components: std.ArrayList(CompType),
 
-        entity: Entity,
-        components: std.AutoHashMap(componentT, void),
+                pub fn init(allocator: *Allocator, component_id: IdType) !Self {
+                    var dense = std.ArrayList(IdType).init(allocator);
+                    var sparse = std.ArrayList(IdType).init(allocator);
+                    var components = std.ArrayList(CompType).init(allocator);
 
-        pub fn init(allocator: *Allocator, world: *World(entityT, storageT, componentT), entity: Entity) Self {
-            return Self{
-                .allocator = allocator,
-                .world = world,
+                    return Self{
+                        .allocator = allocator,
+                        .component_id = component_id,
 
-                .entity = entity,
-                .components = std.AutoHashMap(componentT, void).init(allocator),
+                        .dense = dense,
+                        .sparse = sparse,
+                        .components = components,
+                    };
+                }
+
+                pub fn deinit(self: *Self) void {
+                    self.components.deinit();
+                    self.dense.deinit();
+                    self.sparse.deinit();
+                }
+
+                pub fn len(self: *Self) IdType {
+                    return self.dense_len;
+                }
+
+                pub fn toComponentSlice(self: *Self) []CompType {
+                    return self.components.items;
+                }
+
+                pub fn add(self: *Self, entity: Entity, component: CompType) !IdType {
+                    if (self.entityExists(entity)) {
+                        return error.AlreadyRegistered;
+                    }
+
+                    try self.sparse.resize(entity.id + 1);
+
+                    try self.dense.append(entity.id);
+                    try self.components.append(component);
+
+                    self.sparse.items[entity.id] = self.dense_len;
+
+                    self.dense_len += 1;
+                    return self.dense_len - 1;
+                }
+
+                pub fn remove(self: *Self, entity: Entity) !void {
+                    if (!self.entityExists(entity)) {
+                        return error.NotRegistered;
+                    }
+
+                    self.dense_len -= 1;
+
+                    const last_sparse = self.dense.items[self.dense_len];
+                    const dense = self.sparse.items[entity.id];
+
+                    _ = self.dense.swapRemove(dense);
+                    _ = self.components.swapRemove(dense);
+                    self.sparse.items[last_sparse] = dense;
+                }
+
+                pub fn entityExists(self: *Self, entity: Entity) bool {
+                    if (entity.id >= self.sparse.items.len) {
+                        return false;
+                    }
+                    const dense = self.sparse.items[entity.id];
+                    return dense < self.dense_len and self.dense.items[dense] == entity.id;
+                }
+
+                pub fn getComponentByEntity(self: *Self, entity: Entity) !*CompType {
+                    if (!self.entityExists(entity)) {
+                        return error.NotRegistered;
+                    }
+
+                    const dense = self.sparse.items[entity.id];
+                    return &self.components.items[dense];
+                }
+
+                pub fn getComponentByDense(self: *Self, dense: IdType) !*CompType {
+                    if (dense >= self.dense_len) {
+                        return error.OutOfBounds;
+                    }
+
+                    return &self.components.items[dense];
+                }
             };
         }
 
-        pub fn withComponent(self: Self, component: componentT) Self {
-            _ = self.components.put(component, {}) catch null;
-            return Self {
-                .allocator = self.allocator,
-                .world = self.world,
+        pub const System = struct {
+            runFn: fn (self: *System) void,
 
-                .entity = self.entity,
-                .components = self.components,
-            };
-        }
-
-        pub fn build(self: *Self) !Entity {
-            var iter = self.components.iterator();
-            while (iter.next()) |component| {
-                _ = try self.world.*.component_storages[@enumToInt(component.key)].add(self.entity, component.key);
+            pub fn run(self: *System) void {
+                self.runFn(self);
             }
-            self.components.deinit();
-            return self.entity;
-        }
+        };
     };
 }
 
-pub fn ComponentStorage(comptime entityT: type, comptime storageT: type, comptime componentT: type) type {
-    return struct {
-        const Self = @This();
-        const Entity = World(entityT, storageT, componentT).Entity;
-        allocator: *Allocator,
-        component_id: storageT,
+/// A Vector Storage that stores one type in a generic non comptime manner
+/// Stores all entries as their raw bytes
+pub const AnyVecStore = struct {
+    const Self = @This();
+    allocator: *Allocator,
 
-        dense: std.ArrayList(entityT),
-        dense_len: entityT = 0,
-        sparse: std.ArrayList(entityT),
-        components: std.ArrayList(componentT),
+    data: []u8,
+    data_len: usize,
+    len: usize,
 
-        pub fn init(allocator: *Allocator, component_id: storageT) !Self {
-            var dense = std.ArrayList(entityT).init(allocator);
-            var sparse = std.ArrayList(entityT).init(allocator);
-            var components = std.ArrayList(componentT).init(allocator);
+    type_name: []const u8,
+    type_size: usize,
 
-            return Self{
-                .allocator = allocator,
-                .component_id = component_id,
+    /// Initialize the AnyVecStore
+    pub fn init(comptime T: type, allocator: *Allocator) Self {
+        return Self{
+            .allocator = allocator,
 
-                .dense = dense,
-                .sparse = sparse,
-                .components = components,
-            };
+            .data = &[_]u8{},
+            .data_len = 0,
+            .len = 0,
+
+            .type_name = @typeName(T),
+            .type_size = @bitSizeOf(T),
+        };
+    }
+
+    /// Initialize the AnyVecStore with a capacity
+    pub fn initCapacity(comptime T: type, capacity: usize, allocator: *Allocator) !Self {
+        return Self{
+            .allocator = allocator,
+
+            .data = try allocator.alloc(u8, @sizeOf(T) * capacity),
+            .data_len = @sizeOf(T) * capacity,
+            .len = capacity,
+
+            .type_name = @typeName(T),
+            .type_size = @bitSizeOf(T),
+        };
+    }
+
+    pub fn deinit(self: Self) void {
+        self.allocator.free(self.data);
+    }
+
+    fn checkType(self: *Self, comptime T: type) bool {
+        const nameT = @typeName(T);
+        const sizeT = @bitSizeOf(T);
+
+        return mem.eql(u8, self.type_name, nameT) and self.type_size == sizeT;
+    }
+
+    pub fn append(self: *Self, comptime T: type, data: T) !void {
+        if (!self.checkType(T)) return error.TypeIncorrect;
+
+        const sizeT = @sizeOf(T);
+
+        self.data = try self.allocator.realloc(self.data, self.data_len + sizeT);
+
+        const dataBytes = mem.toBytes(data);
+        for (dataBytes[0..dataBytes.len]) |b, i| self.data[self.data_len + i] = b;
+
+        self.data_len += sizeT;
+        self.len += 1;
+    }
+
+    pub fn getIndex(self: *Self, comptime T: type, index: usize) !T {
+        if (!self.checkType(T)) return error.TypeIncorrect;
+
+        if (index >= self.len) {
+            return error.IndexNotFound;
         }
 
-        pub fn deinit(self: *Self) void {
-            self.components.deinit();
-            self.dense.deinit();
-            self.sparse.deinit();
+        const sizeT = @sizeOf(T);
+        const offset = sizeT * index;
+
+        var dataBytes = self.data[offset .. offset + sizeT];
+        return mem.bytesToValue(T, @ptrCast(*[sizeT]u8, dataBytes));
+    }
+
+    pub fn getIndexPtr(self: *Self, comptime T: type, index: usize) !*T {
+        if (!self.checkType(T)) return error.TypeIncorrect;
+
+        if (index >= self.len) {
+            return error.IndexNotFound;
         }
 
-        pub fn len(self: Self) entityT {
-            return self.dense_len;
+        const sizeT = @sizeOf(T);
+        const offset = sizeT * index;
+
+        var dataBytes = self.data[offset .. offset + sizeT];
+        return @ptrCast(*T, @alignCast(@alignOf(T), dataBytes));
+    }
+
+    pub fn setIndex(self: *Self, comptime T: type, index: usize, data: T) !void {
+        if (!self.checkType(T)) return error.TypeIncorrect;
+
+        if (index >= self.len) {
+            return error.IndexNotFound;
         }
 
-        pub fn toComponentSlice(self: Self) []componentT {
-            return self.components.items;
-        }
+        const sizeT = @sizeOf(T);
+        const offset = sizeT * index;
 
-        pub fn add(self: *Self, entity: Entity, component: componentT) !entityT {
-            if (@enumToInt(component) != self.component_id) {
-                return error.ComponentDifferent;
-            }
-            if (self.entityExists(entity)) {
-                return error.AlreadyRegistered;
-            }
-
-            try self.sparse.resize(entity.id + 1);
-
-            try self.dense.append(entity.id);
-            try self.components.append(component);
-
-            self.sparse.items[entity.id] = self.dense_len;
-
-            self.dense_len += 1;
-            return self.dense_len - 1;
-        }
-
-        pub fn remove(self: *Self, entity: Entity) !void {
-            if (!self.entityExists(entity)) {
-                return error.NotRegistered;
-            }
-
-            self.dense_len -= 1;
-
-            const last_sparse = self.dense.items[self.dense_len];
-            const dense = self.sparse.items[entity.id];
-
-            _ = self.dense.swapRemove(dense);
-            _ = self.components.swapRemove(dense);
-            self.sparse.items[last_sparse] = dense;
-        }
-
-        pub fn entityExists(self: Self, entity: Entity) bool {
-            if (entity.id >= self.sparse.items.len) {
-                return false;
-            }
-            const dense = self.sparse.items[entity.id];
-            return dense < self.dense_len and self.dense.items[dense] == entity.id;
-        }
-
-        pub fn getComponentByEntity(self: Self, entity: Entity) !*componentT {
-            if (!self.entityExists(entity)) {
-                return error.NotRegistered;
-            }
-
-            const dense = self.sparse.items[entity.id];
-            return &self.components.items[dense];
-        }
-
-        pub fn getComponentByDense(self: Self, dense: entityT) !*componentT {
-            if (dense >= self.dense_len) {
-                return error.OutOfBounds;
-            }
-
-            return &self.components.items[dense];
-        }
-    };
-}
-
-pub const System = struct {
-    runFn: fn(self: *System) void,
-
-    pub fn run(self: *System) void {
-        self.runFn(self);
+        const dataBytes = mem.toBytes(data);
+        for (dataBytes[0..dataBytes.len]) |b, i| self.data[offset + i] = b;
     }
 };
 
-fn ResourceStorage(comptime entityT: type, comptime storageT: type, comptime resourceT: type) type {
-    return struct {
-        const Self = @This();
-        const Entity = World(entityT, storageT, resourceT).Entity;
-        allocator: *Allocator,
-        component_id: storageT,
+/// A Vector Storage that stores any type in a generic non comptime manner
+/// Stores all entries as their raw bytes
+/// Uses a hash map as an offset table
+pub const MultiVecStore = struct {
+    const Self = @This();
+    allocator: *Allocator,
 
-        dense: std.ArrayList(entityT),
-        dense_len: entityT = 0,
-        sparse: std.ArrayList(entityT),
-        resources: std.ArrayList(resourceT),
+    data: []u8,
+    data_len: usize,
 
-        pub fn init(allocator: *Allocator, component_id: storageT) !Self {
-            var dense = std.ArrayList(entityT).init(allocator);
-            var sparse = std.ArrayList(entityT).init(allocator);
-            var resources = std.ArrayList(resourceT).init(allocator);
+    offset_map: std.AutoHashMap(usize, usize),
 
-            return Self{
-                .allocator = allocator,
-                .component_id = component_id,
+    len: usize,
 
-                .dense = dense,
-                .sparse = sparse,
-                .resources = resources,
-            };
+    /// Initialize the MultiVecStore
+    pub fn init(allocator: *Allocator) Self {
+        return Self{
+            .allocator = allocator,
+
+            .data = &[_]u8{},
+            .data_len = 0,
+
+            .offset_map = std.AutoHashMap(usize, usize).init(allocator),
+
+            .len = 0,
+        };
+    }
+
+    /// Initialize the MultiVecStore with a capacity
+    /// The capacity is all types * the capacity
+    pub fn initCapacity(comptime Types: var, capacity: usize, allocator: *Allocator) !Self {
+        var len: usize = 0;
+        inline for (Types) |T| {
+            len += @sizeOf(T) * capacity;
+        }
+        return Self{
+            .allocator = allocator,
+
+            .data = try allocator.alloc(u8, len),
+            .data_len = len,
+
+            .offset_map = std.AutoHashMap(usize, usize).init(allocator),
+
+            .len = capacity * Types.len,
+        };
+    }
+
+    pub fn deinit(self: Self) void {
+        self.allocator.free(self.data);
+        self.offset_map.deinit();
+    }
+
+    pub fn append(self: *Self, comptime T: type, data: T) !void {
+        const sizeT = @sizeOf(T);
+        const offset = self.data_len;
+
+        self.data = try self.allocator.realloc(self.data, offset + sizeT);
+
+        const dataBytes = mem.toBytes(data);
+        for (dataBytes[0..dataBytes.len]) |b, i| self.data[self.data_len + i] = b;
+
+        _ = try self.offset_map.put(self.len, offset);
+
+        self.data_len += sizeT;
+        self.len += 1;
+    }
+
+    pub fn getIndex(self: *Self, comptime T: type, index: usize) !T {
+        if (self.offset_map.get(index) == null) {
+            return error.IndexNotFound;
         }
 
-        pub fn deinit(self: *Self) void {
-            self.resources.deinit();
-            self.dense.deinit();
-            self.sparse.deinit();
+        const sizeT = @sizeOf(T);
+        const offset = self.offset_map.get(index).?.value;
+
+        var dataBytes = self.data[offset .. offset + sizeT];
+        return mem.bytesToValue(T, @ptrCast(*[sizeT]u8, dataBytes));
+    }
+
+    pub fn getIndexPtr(self: *Self, comptime T: type, index: usize) !*T {
+        if (self.offset_map.get(index) == null) {
+            return error.IndexNotFound;
         }
 
-        pub fn len(self: Self) entityT {
-            return self.dense_len;
+        const sizeT = @sizeOf(T);
+        const offset = self.offset_map.get(index).?.value;
+
+        var dataBytes = self.data[offset .. offset + sizeT];
+        return @ptrCast(*T, @alignCast(@alignOf(T), dataBytes));
+    }
+
+    pub fn setIndex(self: *Self, comptime T: type, index: usize, data: T) !void {
+        if (self.offset_map.get(index) == null) {
+            return error.IndexNotFound;
         }
 
-        pub fn toResourceSlice(self: Self) []resourceT {
-            return self.resources.items;
-        }
+        const sizeT = @sizeOf(T);
+        const offset = self.offset_map.get(index).?.value;
 
-        pub fn add(self: *Self, entity: Entity, resources: resourceT) !entityT {
-            if (self.entityExists(entity)) {
-                return error.AlreadyRegistered;
-            }
-
-            try self.sparse.resize(entity.id + 1);
-
-            try self.dense.append(entity.id);
-            try self.resources.append(resources);
-
-            self.sparse.items[entity.id] = self.dense_len;
-
-            self.dense_len += 1;
-            return self.dense_len - 1;
-        }
-
-        pub fn remove(self: *Self, entity: Entity) !void {
-            if (!self.entityExists(entity)) {
-                return error.NotRegistered;
-            }
-
-            self.dense_len -= 1;
-
-            const last_sparse = self.dense.items[self.dense_len];
-            const dense = self.sparse.items[entity.id];
-
-            _ = self.dense.swapRemove(dense);
-            _ = self.resources.swapRemove(dense);
-            self.sparse.items[last_sparse] = dense;
-        }
-
-        pub fn entityExists(self: Self, entity: Entity) bool {
-            if (entity.id >= self.sparse.items.len) {
-                return false;
-            }
-            const dense = self.sparse.items[entity.id];
-            return dense < self.dense_len and self.dense.items[dense] == entity.id;
-        }
-
-        pub fn getResourceByEntity(self: Self, entity: Entity) !*resourceT {
-            if (!self.entityExists(entity)) {
-                return error.NotRegistered;
-            }
-
-            const dense = self.sparse.items[entity.id];
-            return &self.resources.items[dense];
-        }
-
-        pub fn getResourceByDense(self: Self, dense: entityT) !*resourceT {
-            if (dense >= self.dense_len) {
-                return error.OutOfBounds;
-            }
-
-            return &self.resources.items[dense];
-        }
-    };
-}
+        const dataBytes = mem.toBytes(data);
+        for (dataBytes[0..dataBytes.len]) |b, i| self.data[offset + i] = b;
+    }
+};
