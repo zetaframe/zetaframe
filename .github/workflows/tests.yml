@@ -15,4 +15,3 @@ jobs:
       with:
         version: master
     - run: zig build test-no-render
-    - run: zig test core/src/lib2.zig
