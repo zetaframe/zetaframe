@@ -26,12 +26,10 @@ pub const Pipeline = struct {
                 offset: u32,
             };
 
-            const Self = @This();
-
             binding_description: BindingDescription,
             attribute_descriptions: []AttributeDescription,
 
-            pub fn init(comptime T: type, binding: u32, allocator: *Allocator) !Self {
+            pub fn init(comptime T: type, binding: u32, allocator: *Allocator) !Input {
                 if (comptime !trait.is(.Struct)(T)) {
                     @compileError("Vertex Input Type must be a packed struct");
                 }
@@ -66,7 +64,7 @@ pub const Pipeline = struct {
                     });
                 }
 
-                const ret = Self{
+                const ret = Input{
                     .binding_description = BindingDescription{
                         .binding = binding,
                         .stride = @sizeOf(T),
