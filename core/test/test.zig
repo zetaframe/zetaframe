@@ -6,16 +6,16 @@ const testing = std.testing;
 usingnamespace @import("zetacore");
 
 const HealthComponent = struct {
-    health: u8,
+    health: usize,
 };
 const EnergyComponent = struct {
-    energy: u8,
+    energy: usize,
 };
 const PositionComponent = struct {
     pos: [3]f32,
 };
 
-const ECS = @import("zetacore").Schema(u8, .{
+const ECS = @import("zetacore").Schema(u20, .{
     HealthComponent,
     EnergyComponent,
     PositionComponent,
@@ -45,54 +45,95 @@ fn HungerSystem() void {
 pub fn rtest() !void {
     std.debug.warn("\n", .{});
 
+    try generalECSTest();
+    try lotsOfEntities();
+    try ecsBench();
+    try anyVecStoreTest();
+    try multiVecStoreTest();
+}
+
+fn generalECSTest() !void {
     var world = try ECS.World.init(std.heap.page_allocator);
     defer world.deinit();
 
     var damageSystem = DamageSystem.init();
 
     try world.registerSystem(&damageSystem.system);
-    //try world.registerSystem(HungerSystem);
-
-    var entity0_1 = try world.createEntity(.{});
-
-    try world.deleteEntity(entity0_1);
-
-    var entity0_2 = try world.createEntity(.{
-        PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } },
-    });
-
-    testing.expect(entity0_2.id == 0);
-
-    try world.deleteEntity(entity0_2);
-
-    var entity0 = try world.createEntity(.{
-        PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } },
-    });
-
-    testing.expect(entity0.id == 0);
-
-    var entity1 = try world.createEntity(.{
-        HealthComponent{ .health = 100 },
-    });
-
-    var entity2 = try world.createEntity(.{
-        EnergyComponent{ .energy = 100 },
-    });
-
-    testing.expect((try world.component_storages.getIndexPtr(ECS.ComponentStorage(HealthComponent), 0)).len() == 1);
-
-    try world.deleteEntity(entity0);
-
-    testing.expect((try world.component_storages.getIndexPtr(ECS.ComponentStorage(HealthComponent), 0)).len() == 1);
-    testing.expect((try world.component_storages.getIndexPtr(ECS.ComponentStorage(PositionComponent), 2)).len() == 0);
-
-    var hComponent1 = try (try world.component_storages.getIndexPtr(ECS.ComponentStorage(HealthComponent), 0)).getComponentByEntity(entity1);
-    testing.expect(hComponent1.*.health == 100);
 
     world.run();
+}
 
-    try anyVecStoreTest();
-    try multiVecStoreTest();
+fn lotsOfEntities() !void {
+    warn("----- lots_of_entities -----\n", .{});
+    const EntityCreationData = struct {
+        health: HealthComponent,
+        energy: EnergyComponent,
+        position: PositionComponent,
+    };
+    const timer = std.time.Timer.start() catch @panic("timer needed");
+    const start = timer.read();
+
+    var world = try ECS.World.init(std.heap.page_allocator);
+    defer world.deinit();
+
+    var i: usize = 0;
+    while (i < std.math.maxInt(u20) - 1) : (i += 1) {
+        _ = try world.createEntity(EntityCreationData, EntityCreationData{
+            .health = HealthComponent{ .health = i },
+            .energy = EnergyComponent{ .energy = i * 2 },
+            .position = PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } },
+        });
+    }
+
+    i = 0;
+    while (i < std.math.maxInt(u20) - 1) : (i += 1) {
+        try world.deleteEntity(ECS.Entity{ .id = @intCast(u20, i), .internal = 0, .priority = 0 });
+    }
+
+    const end = timer.read();
+    warn("entities: {}\n", .{std.math.maxInt(u20)});
+    warn("time: {}\n", .{end - start});
+    warn("----- ----- -----\n", .{});
+}
+
+fn ecsBench() !void {
+    warn("----- ecs_bench -----\n", .{});
+    const EntityCreationData = struct {
+        health: []HealthComponent,
+        position: []PositionComponent,
+    };
+
+    const EntityCreationData2 = struct {
+        position: []PositionComponent,
+    };
+
+    const timer = std.time.Timer.start() catch @panic("timer needed");
+    const start = timer.read();
+
+    var world = try ECS.World.init(std.heap.page_allocator);
+    defer world.deinit();
+
+    var healths0 = [_]HealthComponent{HealthComponent{ .health = 0 }} ** 10000;
+    var positions0 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
+
+    const ecd0 = EntityCreationData{
+        .health = &healths0,
+        .position = &positions0,
+    };
+
+    try world.createEntities(EntityCreationData, ecd0);
+
+    var positions1 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 90000;
+
+    const ecd1 = EntityCreationData2{
+        .position = &positions1,
+    };
+
+    try world.createEntities(EntityCreationData2, ecd1);
+
+    const end = timer.read();
+    warn("time: {}\n", .{end - start});
+    warn("----- ----- -----\n", .{});
 }
 
 fn anyVecStoreTest() !void {

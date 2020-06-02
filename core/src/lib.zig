@@ -24,6 +24,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
         pub const Entity = struct {
             id: IdType,
             internal: IdType,
+            priority: IdType = 0,
         };
 
         pub const World = struct {
@@ -84,7 +85,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             }
 
             //----- Entities
-            pub fn createEntity(self: *Self, comptime components: var) !Entity {
+            pub fn createEntity(self: *Self, comptime T: type, components: T) !Entity {
                 var entity: Entity = undefined;
                 if (self.entities_deleted == 0) {
                     entity = Entity{
@@ -118,13 +119,31 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     }
                 }
 
-                inline for (components) |comp| {
-                    var index = self.component_map.getValue(@typeName(@TypeOf(comp))) orelse return error.ComponentDoesNotExist;
+                inline for (@typeInfo(T).Struct.fields) |field| {
+                    const FieldT = field.field_type;
+                    var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
 
-                    _ = try (try self.component_storages.getIndexPtr(ComponentStorage(@TypeOf(comp)), index)).add(entity, comp);
+                    _ = try (try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index)).add(entity, @field(components, field.name));
                 }
 
                 return entity;
+            }
+
+            pub fn createEntities(self: *Self, comptime T: type, components: T) !void {
+                const entity = Entity{
+                    .id = self.current_entityid,
+                    .internal = self.current_entityid,
+                };
+                self.entities[self.current_entityid] = entity;
+
+                self.current_entityid += 1;
+
+                inline for (@typeInfo(T).Struct.fields) |field| {
+                    const FieldT = @typeInfo(field.field_type).Pointer.child;
+                    var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
+
+                    _ = try (try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index)).addSlice(entity, @field(components, field.name));
+                }
             }
 
             pub fn deleteEntity(self: *Self, entity: Entity) !void {
@@ -150,7 +169,9 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 if (entity.id <= self.entities.len) return true else return false;
             }
 
-            pub fn isEntityAlive(self: *Self, entity: Entity) bool {}
+            pub fn isEntityAlive(self: *Self, entity: Entity) bool {
+                if (self.doesEntityExist(entity)) return true else return false;
+            }
 
             //----- Components
 
@@ -167,45 +188,6 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             }
 
             //----- Resources.
-        };
-
-        pub const EntityBuilder = struct {
-            const Self = @This();
-            allocator: *Allocator,
-            world: *World,
-
-            entity: Entity,
-            components: std.AutoHashMap(componentT, void),
-
-            pub fn init(allocator: *Allocator, world: *World, entity: Entity) Self {
-                return Self{
-                    .allocator = allocator,
-                    .world = world,
-
-                    .entity = entity,
-                    .components = std.AutoHashMap(componentT, void).init(allocator),
-                };
-            }
-
-            pub fn withComponent(self: *Self, component: componentT) Self {
-                _ = self.components.put(component, {}) catch null;
-                return Self{
-                    .allocator = self.allocator,
-                    .world = self.world,
-
-                    .entity = self.entity,
-                    .components = self.components,
-                };
-            }
-
-            pub fn build(self: *Self) !Entity {
-                var iter = self.components.iterator();
-                while (iter.next()) |component| {
-                    _ = try self.world.*.component_storages[@enumToInt(component.key)].add(self.entity, component.key);
-                }
-                self.components.deinit();
-                return self.entity;
-            }
         };
 
         pub fn ComponentStorage(comptime CompType: type) type {
@@ -262,6 +244,18 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
                     self.dense_len += 1;
                     return self.dense_len - 1;
+                }
+
+                pub fn addSlice(self: *Self, entity: Entity, components: []CompType) !void {
+                    try self.sparse.resize(entity.id + components.len + 1);
+
+                    try self.components.appendSlice(components);
+
+                    for (components) |_, i| {
+                        try self.dense.append(entity.id + @intCast(IdType, i));
+                        self.sparse.items[entity.id + @intCast(IdType, i)] = self.dense_len;
+                        self.dense_len += 1;
+                    }
                 }
 
                 pub fn remove(self: *Self, entity: Entity) !void {
@@ -486,43 +480,47 @@ pub const MultiVecStore = struct {
         const dataBytes = mem.toBytes(data);
         for (dataBytes[0..dataBytes.len]) |b, i| self.data[self.data_len + i] = b;
 
-        _ = try self.offset_map.put(self.len, offset);
+        try self.offset_map.putNoClobber(self.len, offset);
 
         self.data_len += sizeT;
         self.len += 1;
     }
 
     pub fn getIndex(self: *Self, comptime T: type, index: usize) !T {
-        if (self.offset_map.get(index) == null) {
+        if (self.offset_map.getValue(index) == null) {
             return error.IndexNotFound;
         }
 
         const sizeT = @sizeOf(T);
-        const offset = self.offset_map.get(index).?.value;
+        const offset = self.offset_map.getValue(index).?;
 
         var dataBytes = self.data[offset .. offset + sizeT];
         return mem.bytesToValue(T, @ptrCast(*[sizeT]u8, dataBytes));
     }
 
     pub fn getIndexPtr(self: *Self, comptime T: type, index: usize) !*T {
-        if (self.offset_map.get(index) == null) {
+        if (self.offset_map.getValue(index) == null) {
             return error.IndexNotFound;
         }
 
         const sizeT = @sizeOf(T);
-        const offset = self.offset_map.get(index).?.value;
+        const offset = self.offset_map.getValue(index).?;
 
         var dataBytes = self.data[offset .. offset + sizeT];
         return @ptrCast(*T, @alignCast(@alignOf(T), dataBytes));
     }
 
     pub fn setIndex(self: *Self, comptime T: type, index: usize, data: T) !void {
-        if (self.offset_map.get(index) == null) {
+        if (self.offset_map.getValue(index) == null) {
             return error.IndexNotFound;
         }
 
         const sizeT = @sizeOf(T);
-        const offset = self.offset_map.get(index).?.value;
+        const offset = self.offset_map.getValue(index).?;
+
+        if (self.offset_map.getValue(index + 1) != null) {
+            if (self.offset_map.getValue(index + 1).? - offset != sizeT) return error.TypeIncorrect;
+        }
 
         const dataBytes = mem.toBytes(data);
         for (dataBytes[0..dataBytes.len]) |b, i| self.data[offset + i] = b;
