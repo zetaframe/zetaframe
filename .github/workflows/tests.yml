@@ -14,4 +14,4 @@ jobs:
     - uses: goto-bus-stop/setup-zig@v1.2.3
       with:
         version: master
-    - run: zig build test-no-render
+    - run: zig build test-no-render -Drelease-fast
