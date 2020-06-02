@@ -11,7 +11,7 @@ const trait = std.meta.trait;
 
 const builtin = @import("builtin");
 
-// ECS
+/// ECS Schema with the IdType and all component types
 pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
     if (comptime !trait.isUnsignedInt(IdType)) {
         @compileError("Id type '" ++ @typeName(IdType) ++ "' must be an unsigned int.");
@@ -119,6 +119,8 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     }
                 }
 
+                entity.priority = @typeInfo(T).Struct.fields.len;
+
                 inline for (@typeInfo(T).Struct.fields) |field| {
                     const FieldT = field.field_type;
                     var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
@@ -133,10 +135,11 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 const entity = Entity{
                     .id = self.current_entityid,
                     .internal = self.current_entityid,
+                    .priority = @typeInfo(T).Struct.fields.len,
                 };
                 self.entities[self.current_entityid] = entity;
 
-                self.current_entityid += 1;
+                self.current_entityid += @intCast(IdType, @field(components, @typeInfo(T).Struct.fields[0].name).len);
 
                 inline for (@typeInfo(T).Struct.fields) |field| {
                     const FieldT = @typeInfo(field.field_type).Pointer.child;
@@ -235,30 +238,35 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                         return error.AlreadyRegistered;
                     }
 
-                    try self.sparse.resize(entity.id + 1);
-
                     try self.dense.append(entity.id);
                     try self.components.append(component);
 
-                    self.sparse.items[entity.id] = self.dense_len;
+                    try self.sparse.insert(entity.id, self.dense_len);
 
                     self.dense_len += 1;
                     return self.dense_len - 1;
                 }
 
                 pub fn addSlice(self: *Self, entity: Entity, components: []CompType) !void {
+                    if (self.entityExists(entity)) {
+                        return error.AlreadyRegistered;
+                    }
+
                     try self.sparse.resize(entity.id + components.len + 1);
+                    try self.dense.resize(self.dense_len + components.len);
 
                     try self.components.appendSlice(components);
 
-                    for (components) |_, i| {
-                        try self.dense.append(entity.id + @intCast(IdType, i));
-                        self.sparse.items[entity.id + @intCast(IdType, i)] = self.dense_len;
-                        self.dense_len += 1;
+                    var i: IdType = 0;
+                    while (i < components.len) : (i += 1) {
+                        self.dense.items[self.dense_len + i] = entity.id + i;
+                        self.sparse.items[entity.id + i] = self.dense_len + i;
                     }
+
+                    self.dense_len += @intCast(IdType, components.len);
                 }
 
-                pub fn remove(self: *Self, entity: Entity) !void {
+                pub fn remove(self: *Self, entity: Entity) !CompType {
                     if (!self.entityExists(entity)) {
                         return error.NotRegistered;
                     }
@@ -269,8 +277,8 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     const dense = self.sparse.items[entity.id];
 
                     _ = self.dense.swapRemove(dense);
-                    _ = self.components.swapRemove(dense);
                     self.sparse.items[last_sparse] = dense;
+                    return self.components.swapRemove(dense);
                 }
 
                 pub fn entityExists(self: *Self, entity: Entity) bool {

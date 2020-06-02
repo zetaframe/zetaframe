@@ -14,11 +14,15 @@ const EnergyComponent = struct {
 const PositionComponent = struct {
     pos: [3]f32,
 };
+const VelocityComponent = struct {
+    vel: [3]f32,
+};
 
 const ECS = @import("zetacore").Schema(u20, .{
     HealthComponent,
     EnergyComponent,
     PositionComponent,
+    VelocityComponent,
 });
 
 const DamageSystem = struct {
@@ -53,8 +57,23 @@ pub fn rtest() !void {
 }
 
 fn generalECSTest() !void {
+    const EntityCreationData = struct {
+        velocities: []VelocityComponent,
+        position: []PositionComponent,
+    };
+
     var world = try ECS.World.init(std.heap.page_allocator);
     defer world.deinit();
+
+    var velocities0 = [_]VelocityComponent{VelocityComponent{ .vel = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
+    var positions0 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
+
+    const ecd0 = EntityCreationData{
+        .velocities = &velocities0,
+        .position = &positions0,
+    };
+
+    try world.createEntities(EntityCreationData, ecd0);
 
     var damageSystem = DamageSystem.init();
 
@@ -99,7 +118,7 @@ fn lotsOfEntities() !void {
 fn ecsBench() !void {
     warn("----- ecs_bench -----\n", .{});
     const EntityCreationData = struct {
-        health: []HealthComponent,
+        velocities: []VelocityComponent,
         position: []PositionComponent,
     };
 
@@ -113,11 +132,11 @@ fn ecsBench() !void {
     var world = try ECS.World.init(std.heap.page_allocator);
     defer world.deinit();
 
-    var healths0 = [_]HealthComponent{HealthComponent{ .health = 0 }} ** 10000;
+    var velocities0 = [_]VelocityComponent{VelocityComponent{ .vel = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
     var positions0 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
 
     const ecd0 = EntityCreationData{
-        .health = &healths0,
+        .velocities = &velocities0,
         .position = &positions0,
     };
 
