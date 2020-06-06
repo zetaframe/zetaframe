@@ -57,23 +57,31 @@ pub fn rtest() !void {
 }
 
 fn generalECSTest() !void {
-    const EntityCreationData = struct {
+    const EntityCreationData0 = struct {
         velocities: []VelocityComponent,
         position: []PositionComponent,
+    };
+
+    const EntityCreationData1 = struct {
+        health: HealthComponent,
     };
 
     var world = try ECS.World.init(std.heap.page_allocator);
     defer world.deinit();
 
-    var velocities0 = [_]VelocityComponent{VelocityComponent{ .vel = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
-    var positions0 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
+    var velocities0 = [_]VelocityComponent{VelocityComponent{ .vel = [3]f32{ 0.0, 0.0, 0.0 } }} ** 1000;
+    var positions0 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 1000;
 
-    const ecd0 = EntityCreationData{
+    const ecd0 = EntityCreationData0{
         .velocities = &velocities0,
         .position = &positions0,
     };
 
-    try world.createEntities(EntityCreationData, ecd0);
+    try world.createEntities(EntityCreationData0, ecd0);
+
+    var entity0 = try world.createEntity(EntityCreationData1, EntityCreationData1{
+        .health = HealthComponent{ .health = 20 },
+    });
 
     var damageSystem = DamageSystem.init();
 
@@ -165,26 +173,26 @@ fn anyVecStoreTest() !void {
     try store.append(u32, 44444);
     try store.append(u32, 55555);
 
-    testing.expect((try store.getIndex(u32, 0)) == 11111);
-    testing.expect((try store.getIndex(u32, 1)) == 22222);
-    testing.expect((try store.getIndex(u32, 2)) == 33333);
-    testing.expect((try store.getIndex(u32, 3)) == 44444);
-    testing.expect((try store.getIndex(u32, 4)) == 55555);
+    testing.expect(store.getIndex(u32, 0) == 11111);
+    testing.expect(store.getIndex(u32, 1) == 22222);
+    testing.expect(store.getIndex(u32, 2) == 33333);
+    testing.expect(store.getIndex(u32, 3) == 44444);
+    testing.expect(store.getIndex(u32, 4) == 55555);
 
-    try store.setIndex(u32, 1, 77777);
-    testing.expect((try store.getIndex(u32, 1)) == 77777);
+    store.setIndex(u32, 1, 77777);
+    testing.expect(store.getIndex(u32, 1) == 77777);
 
-    testing.expect((try store.getIndexPtr(u32, 1)).* == 77777);
+    testing.expect(store.getIndexPtr(u32, 1).* == 77777);
 
     var store2 = try AnyVecStore.initCapacity(u32, 5, std.heap.page_allocator);
     testing.expect(store2.len == 5);
     testing.expect(store2.data_len == @sizeOf(u32) * 5);
 
     try store2.append(u32, 11111);
-    testing.expect((try store2.getIndex(u32, 5)) == 11111);
+    testing.expect(store2.getIndex(u32, 5) == 11111);
 
-    try store2.setIndex(u32, 0, 77777);
-    testing.expect((try store2.getIndex(u32, 0)) == 77777);
+    store2.setIndex(u32, 0, 77777);
+    testing.expect(store2.getIndex(u32, 0) == 77777);
 }
 
 fn multiVecStoreTest() !void {
@@ -199,18 +207,18 @@ fn multiVecStoreTest() !void {
     try store.append(u32, 44444);
     try store.append(u32, 55555);
 
-    testing.expect((try store.getIndex(u32, 0)) == 11111);
-    testing.expect((try store.getIndex(u32, 1)) == 22222);
-    testing.expect((try store.getIndex(u32, 2)) == 33333);
-    testing.expect((try store.getIndex(PositionComponent, 3)).pos[0] == 0.0);
-    testing.expect((try store.getIndex(PositionComponent, 4)).pos[1] == 1.0);
-    testing.expect((try store.getIndex(u32, 5)) == 44444);
-    testing.expect((try store.getIndex(u32, 6)) == 55555);
+    testing.expect(store.getIndex(u32, 0) == 11111);
+    testing.expect(store.getIndex(u32, 1) == 22222);
+    testing.expect(store.getIndex(u32, 2) == 33333);
+    testing.expect(store.getIndex(PositionComponent, 3).pos[0] == 0.0);
+    testing.expect(store.getIndex(PositionComponent, 4).pos[1] == 1.0);
+    testing.expect(store.getIndex(u32, 5) == 44444);
+    testing.expect(store.getIndex(u32, 6) == 55555);
 
-    try store.setIndex(u32, 1, 77777);
-    testing.expect((try store.getIndex(u32, 1)) == 77777);
+    store.setIndex(u32, 1, 77777);
+    testing.expect(store.getIndex(u32, 1) == 77777);
 
-    testing.expect((try store.getIndexPtr(u32, 1)).* == 77777);
+    testing.expect(store.getIndexPtr(u32, 1).* == 77777);
 
     var store2 = try MultiVecStore.initCapacity(.{ u32, f32 }, 2, std.heap.page_allocator);
     defer store2.deinit();

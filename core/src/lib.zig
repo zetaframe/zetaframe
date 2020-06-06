@@ -47,6 +47,8 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
             //----- Resources
 
+            /// Initialize a world in this ECS
+            /// Generates the required storages
             pub fn init(allocator: *Allocator) !Self {
                 var entities = try allocator.alloc(?Entity, math.maxInt(IdType));
                 errdefer allocator.free(entities);
@@ -75,8 +77,14 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 };
             }
 
+            /// Cleans up the world
+            /// Deinits all the storages
             pub fn deinit(self: Self) void {
                 self.allocator.free(self.entities);
+
+                inline for (CompTypes) |T, i| {
+                    self.component_storages.getIndex(ComponentStorage(T), i).deinit();
+                }
 
                 self.component_storages.deinit();
                 self.component_map.deinit();
@@ -85,6 +93,14 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             }
 
             //----- Entities
+
+            /// Create a single entity with components
+            /// Components are declared with a struct
+            /// Ex: 
+            /// struct {
+            ///     health: HealthComponent,
+            ///     position: PositionComponent,
+            ///}
             pub fn createEntity(self: *Self, comptime T: type, components: T) !Entity {
                 var entity: Entity = undefined;
                 if (self.entities_deleted == 0) {
@@ -125,12 +141,19 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     const FieldT = field.field_type;
                     var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
 
-                    _ = try (try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index)).add(entity, @field(components, field.name));
+                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).add(entity, @field(components, field.name));
                 }
 
                 return entity;
             }
 
+            /// Create multiple entities with components
+            /// Components are declared with a struct
+            /// Ex: 
+            /// struct {
+            ///     healths: []HealthComponent,
+            ///     positions: []PositionComponent,
+            ///}
             pub fn createEntities(self: *Self, comptime T: type, components: T) !void {
                 const entity = Entity{
                     .id = self.current_entityid,
@@ -145,7 +168,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     const FieldT = @typeInfo(field.field_type).Pointer.child;
                     var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
 
-                    _ = try (try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index)).addSlice(entity, @field(components, field.name));
+                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).addSlice(entity, @field(components, field.name));
                 }
             }
 
@@ -164,25 +187,81 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 self.entities_deleted += 1;
 
                 inline for (CompTypes) |T, i| {
-                    _ = (try self.component_storages.getIndexPtr(ComponentStorage(T), i)).remove(entity) catch null;
+                    _ = self.component_storages.getIndexPtr(ComponentStorage(T), i).remove(entity) catch null;
                 }
             }
 
-            pub fn doesEntityExist(self: *Self, entity: Entity) bool {
+            /// Checks if the entity exists in the world
+            /// Not to be confused with if the entity is alive
+            pub fn doesEntityExist(self: *Self, entity: *Entity) bool {
                 if (entity.id <= self.entities.len) return true else return false;
             }
 
-            pub fn isEntityAlive(self: *Self, entity: Entity) bool {
+            /// Checks if the entity is alive
+            /// An alive entity is an entity that still contains components
+            pub fn isEntityAlive(self: *Self, entity: *Entity) bool {
                 if (self.doesEntityExist(entity)) return true else return false;
             }
 
+            /// Adds a single component to an entity
+            pub fn addComponentToEntity(self: *Self, entity: *Entity, comptime T: type, component: T) !void {
+                var index = self.component_map.getValue(@typeName(T)) orelse return error.ComponentDoesNotExist;
+                _ = try self.component_storages.getIndexPtr(ComponentStorage(T), index).add(entity, component);
+            }
+
+            /// Adds multiple components to an entity
+            /// Components are declared with a struct
+            /// Ex: 
+            /// struct {
+            ///     health: HealthComponent,
+            ///     position: PositionComponent,
+            ///}
+            pub fn addComponentsToEntity(self: *Self, entity: *Entity, comptime T: type, components: T) !void {
+                inline for (@typeInfo(T).Struct.fields) |field| {
+                    const FieldT = field.field_type;
+                    var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
+
+                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).add(entity, @field(components, field.name));
+                }
+            }
+
+            /// Removes one component from an entity
+            pub fn removeComponentFromEntity(self: *Self, entity: *Entity, comptime T: type) !void {
+                var index = self.component_map.getValue(@typeName(T)) orelse return error.ComponentDoesNotExist;
+                _ = try self.component_storages.getIndexPtr(ComponentStorage(T), index).remove(entity);
+            }
+
             //----- Components
+            /// Queries the world for entities that match the query
+            /// Returns the entities in a AOS fashion
+            pub fn queryAOS(self: *Self, comptime Query: type) []Query {
+                inline for (@typeInfo(Query).Struct.fields) |field| {
+                    const FieldT = field.field_type;
+                    var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
+
+                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).add(entity, @field(components, field.name));
+                }
+            }
+
+            /// Queries the world for entities that match the query
+            /// Returns the entities in a SOA fashion
+            pub fn querySOA(self: *Self, comptime Query: type) Query {
+                inline for (@typeInfo(Query).Struct.fields) |field| {
+                    const FieldT = @typeInfo(field.field_type);
+                    var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
+
+                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).add(entity, @field(components, field.name));
+                }
+            }
 
             //----- Systems
+
+            /// Registers a system 
             pub fn registerSystem(self: *Self, system: *System) !void {
                 _ = try self.systems.put(system, {});
             }
 
+            /// Start up the scheduler
             pub fn run(self: *Self) void {
                 var iter = self.systems.iterator();
                 while (iter.next()) |system| {
@@ -193,7 +272,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             //----- Resources.
         };
 
-        pub fn ComponentStorage(comptime CompType: type) type {
+        fn ComponentStorage(comptime CompType: type) type {
             return struct {
                 const Self = @This();
                 allocator: *Allocator,
@@ -229,10 +308,6 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     return self.dense_len;
                 }
 
-                pub fn toComponentSlice(self: *Self) []CompType {
-                    return self.components.items;
-                }
-
                 pub fn add(self: *Self, entity: Entity, component: CompType) !IdType {
                     if (self.entityExists(entity)) {
                         return error.AlreadyRegistered;
@@ -241,7 +316,8 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     try self.dense.append(entity.id);
                     try self.components.append(component);
 
-                    try self.sparse.insert(entity.id, self.dense_len);
+                    try self.sparse.resize(entity.id + 1);
+                    self.sparse.items[entity.id] = self.dense_len;
 
                     self.dense_len += 1;
                     return self.dense_len - 1;
@@ -305,6 +381,20 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
                     return &self.components.items[dense];
                 }
+
+                fn swapIndicesDense(self: *Self, dense1: IdType, dense2: IdType) !void {
+                    var tempSparse = elf.sparse.items[self.dense.items[dense1]];
+                    self.sparse.items[self.dense.items[dense1]] = self.sparse.items[self.dense.items[dense2]];
+                    self.sparse.items[self.dense.items[dense2]] = tempSparse;
+                    
+                    var tempComponent = self.components.items[dense1];
+                    self.components.items[dense1] = self.components.items[dense2];
+                    self.components.items[dense2] = tempComponent;
+
+                    var tempDense = self.dense.items[dense1];
+                    self.dense.items[dense1] = self.dense.items[dense2];
+                    self.dense.items[dense2] = tempDense;
+                }
             };
         }
 
@@ -363,7 +453,7 @@ pub const AnyVecStore = struct {
         self.allocator.free(self.data);
     }
 
-    fn checkType(self: *Self, comptime T: type) bool {
+    fn checkType(self: *const Self, comptime T: type) bool {
         const nameT = @typeName(T);
         const sizeT = @bitSizeOf(T);
 
@@ -371,7 +461,7 @@ pub const AnyVecStore = struct {
     }
 
     pub fn append(self: *Self, comptime T: type, data: T) !void {
-        if (!self.checkType(T)) return error.TypeIncorrect;
+        assert(self.checkType(T));
 
         const sizeT = @sizeOf(T);
 
@@ -384,12 +474,9 @@ pub const AnyVecStore = struct {
         self.len += 1;
     }
 
-    pub fn getIndex(self: *Self, comptime T: type, index: usize) !T {
-        if (!self.checkType(T)) return error.TypeIncorrect;
-
-        if (index >= self.len) {
-            return error.IndexNotFound;
-        }
+    pub fn getIndex(self: *const Self, comptime T: type, index: usize) T {
+        assert(self.checkType(T));
+        assert(index < self.len);
 
         const sizeT = @sizeOf(T);
         const offset = sizeT * index;
@@ -398,12 +485,9 @@ pub const AnyVecStore = struct {
         return mem.bytesToValue(T, @ptrCast(*[sizeT]u8, dataBytes));
     }
 
-    pub fn getIndexPtr(self: *Self, comptime T: type, index: usize) !*T {
-        if (!self.checkType(T)) return error.TypeIncorrect;
-
-        if (index >= self.len) {
-            return error.IndexNotFound;
-        }
+    pub fn getIndexPtr(self: *Self, comptime T: type, index: usize) *T {
+        assert(self.checkType(T));
+        assert(index < self.len);
 
         const sizeT = @sizeOf(T);
         const offset = sizeT * index;
@@ -412,12 +496,9 @@ pub const AnyVecStore = struct {
         return @ptrCast(*T, @alignCast(@alignOf(T), dataBytes));
     }
 
-    pub fn setIndex(self: *Self, comptime T: type, index: usize, data: T) !void {
-        if (!self.checkType(T)) return error.TypeIncorrect;
-
-        if (index >= self.len) {
-            return error.IndexNotFound;
-        }
+    pub fn setIndex(self: *Self, comptime T: type, index: usize, data: T) void {
+        assert(self.checkType(T));
+        assert(index < self.len);
 
         const sizeT = @sizeOf(T);
         const offset = sizeT * index;
@@ -494,10 +575,8 @@ pub const MultiVecStore = struct {
         self.len += 1;
     }
 
-    pub fn getIndex(self: *Self, comptime T: type, index: usize) !T {
-        if (self.offset_map.getValue(index) == null) {
-            return error.IndexNotFound;
-        }
+    pub fn getIndex(self: *const Self, comptime T: type, index: usize) T {
+        assert(index < self.len);
 
         const sizeT = @sizeOf(T);
         const offset = self.offset_map.getValue(index).?;
@@ -506,10 +585,8 @@ pub const MultiVecStore = struct {
         return mem.bytesToValue(T, @ptrCast(*[sizeT]u8, dataBytes));
     }
 
-    pub fn getIndexPtr(self: *Self, comptime T: type, index: usize) !*T {
-        if (self.offset_map.getValue(index) == null) {
-            return error.IndexNotFound;
-        }
+    pub fn getIndexPtr(self: *Self, comptime T: type, index: usize) *T {
+        assert(index < self.len);
 
         const sizeT = @sizeOf(T);
         const offset = self.offset_map.getValue(index).?;
@@ -518,16 +595,14 @@ pub const MultiVecStore = struct {
         return @ptrCast(*T, @alignCast(@alignOf(T), dataBytes));
     }
 
-    pub fn setIndex(self: *Self, comptime T: type, index: usize, data: T) !void {
-        if (self.offset_map.getValue(index) == null) {
-            return error.IndexNotFound;
-        }
+    pub fn setIndex(self: *Self, comptime T: type, index: usize, data: T) void {
+        assert(index < self.len);
 
         const sizeT = @sizeOf(T);
         const offset = self.offset_map.getValue(index).?;
 
         if (self.offset_map.getValue(index + 1) != null) {
-            if (self.offset_map.getValue(index + 1).? - offset != sizeT) return error.TypeIncorrect;
+            assert(self.offset_map.getValue(index + 1).? - offset == sizeT);
         }
 
         const dataBytes = mem.toBytes(data);
