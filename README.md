@@ -2,7 +2,7 @@
 
 ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/zetaframe/zetaframe/Tests?style=for-the-badge)
 
-A `wip` zig game framework.
+A `wip` "lightweight" zig game framework.
 
 ## Modules
 
