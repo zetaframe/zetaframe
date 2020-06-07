@@ -96,7 +96,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
             /// Create a single entity with components
             /// Components are declared with a struct
-            /// Ex: 
+            /// Ex:
             /// struct {
             ///     health: HealthComponent,
             ///     position: PositionComponent,
@@ -149,7 +149,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
             /// Create multiple entities with components
             /// Components are declared with a struct
-            /// Ex: 
+            /// Ex:
             /// struct {
             ///     healths: []HealthComponent,
             ///     positions: []PositionComponent,
@@ -160,7 +160,11 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     .internal = self.current_entityid,
                     .priority = @typeInfo(T).Struct.fields.len,
                 };
-                self.entities[self.current_entityid] = entity;
+
+                var i: usize = 0;
+                while (i < @field(components, @typeInfo(T).Struct.fields[0].name).len) : (i += 1) {
+                    self.entities[self.current_entityid + i] = entity;
+                }
 
                 self.current_entityid += @intCast(IdType, @field(components, @typeInfo(T).Struct.fields[0].name).len);
 
@@ -200,7 +204,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             /// Checks if the entity is alive
             /// An alive entity is an entity that still contains components
             pub fn isEntityAlive(self: *Self, entity: *Entity) bool {
-                if (self.doesEntityExist(entity)) return true else return false;
+                if (self.doesEntityExist(entity) and entity.id == entity.internal) return true else return false;
             }
 
             /// Adds a single component to an entity
@@ -211,7 +215,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
             /// Adds multiple components to an entity
             /// Components are declared with a struct
-            /// Ex: 
+            /// Ex:
             /// struct {
             ///     health: HealthComponent,
             ///     position: PositionComponent,
@@ -234,13 +238,25 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             //----- Components
             /// Queries the world for entities that match the query
             /// Returns the entities in a AOS fashion
-            pub fn queryAOS(self: *Self, comptime Query: type) []Query {
-                inline for (@typeInfo(Query).Struct.fields) |field| {
-                    const FieldT = field.field_type;
-                    var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
+            pub fn queryAOS(self: *Self, comptime Query: type) ![]Query {
+                var queries = std.ArrayList(Query).init(self.allocator);
+                outer: for (self.entities) |_, i| {
+                    if (self.entities[i] != null) {
+                        var entity = self.entities[i].?;
+                        if (!self.isEntityAlive(&entity)) continue;
 
-                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).add(entity, @field(components, field.name));
+                        var query: Query = undefined;
+                        inline for (@typeInfo(Query).Struct.fields) |field| {
+                            const FieldT = @typeInfo(field.field_type).Pointer.child;
+                            var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
+
+                            if (!self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).has(entity)) continue :outer;
+                            @field(query, field.name) = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).getByEntity(entity);
+                        }
+                        try queries.append(query);
+                    }
                 }
+                return queries.toOwnedSlice();
             }
 
             /// Queries the world for entities that match the query
@@ -256,7 +272,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
             //----- Systems
 
-            /// Registers a system 
+            /// Registers a system
             pub fn registerSystem(self: *Self, system: *System) !void {
                 _ = try self.systems.put(system, {});
             }
@@ -309,7 +325,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 }
 
                 pub fn add(self: *Self, entity: Entity, component: CompType) !IdType {
-                    if (self.entityExists(entity)) {
+                    if (self.has(entity)) {
                         return error.AlreadyRegistered;
                     }
 
@@ -324,7 +340,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 }
 
                 pub fn addSlice(self: *Self, entity: Entity, components: []CompType) !void {
-                    if (self.entityExists(entity)) {
+                    if (self.has(entity)) {
                         return error.AlreadyRegistered;
                     }
 
@@ -343,7 +359,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 }
 
                 pub fn remove(self: *Self, entity: Entity) !CompType {
-                    if (!self.entityExists(entity)) {
+                    if (!self.has(entity)) {
                         return error.NotRegistered;
                     }
 
@@ -357,7 +373,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     return self.components.swapRemove(dense);
                 }
 
-                pub fn entityExists(self: *Self, entity: Entity) bool {
+                pub fn has(self: *Self, entity: Entity) bool {
                     if (entity.id >= self.sparse.items.len) {
                         return false;
                     }
@@ -365,8 +381,8 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     return dense < self.dense_len and self.dense.items[dense] == entity.id;
                 }
 
-                pub fn getComponentByEntity(self: *Self, entity: Entity) !*CompType {
-                    if (!self.entityExists(entity)) {
+                pub fn getByEntity(self: *Self, entity: Entity) !*CompType {
+                    if (!self.has(entity)) {
                         return error.NotRegistered;
                     }
 
@@ -374,7 +390,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     return &self.components.items[dense];
                 }
 
-                pub fn getComponentByDense(self: *Self, dense: IdType) !*CompType {
+                pub fn getByDense(self: *Self, dense: IdType) !*CompType {
                     if (dense >= self.dense_len) {
                         return error.OutOfBounds;
                     }
@@ -386,7 +402,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     var tempSparse = elf.sparse.items[self.dense.items[dense1]];
                     self.sparse.items[self.dense.items[dense1]] = self.sparse.items[self.dense.items[dense2]];
                     self.sparse.items[self.dense.items[dense2]] = tempSparse;
-                    
+
                     var tempComponent = self.components.items[dense1];
                     self.components.items[dense1] = self.components.items[dense2];
                     self.components.items[dense2] = tempComponent;

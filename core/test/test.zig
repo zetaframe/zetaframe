@@ -50,10 +50,10 @@ pub fn rtest() !void {
     std.debug.warn("\n", .{});
 
     try generalECSTest();
-    try lotsOfEntities();
-    try ecsBench();
-    try anyVecStoreTest();
-    try multiVecStoreTest();
+    // try lotsOfEntities();
+    // try ecsBench();
+    // try anyVecStoreTest();
+    // try multiVecStoreTest();
 }
 
 fn generalECSTest() !void {
@@ -66,11 +66,16 @@ fn generalECSTest() !void {
         health: HealthComponent,
     };
 
+    const EntityCreationData2 = struct {
+        healths: []HealthComponent,
+        positions: []PositionComponent,
+    };
+
     var world = try ECS.World.init(std.heap.page_allocator);
     defer world.deinit();
 
-    var velocities0 = [_]VelocityComponent{VelocityComponent{ .vel = [3]f32{ 0.0, 0.0, 0.0 } }} ** 1000;
-    var positions0 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 1000;
+    var velocities0 = [_]VelocityComponent{VelocityComponent{ .vel = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
+    var positions0 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
 
     const ecd0 = EntityCreationData0{
         .velocities = &velocities0,
@@ -83,7 +88,33 @@ fn generalECSTest() !void {
         .health = HealthComponent{ .health = 20 },
     });
 
+    var healths0 = [_]HealthComponent{HealthComponent{ .health = 20 }} ** 1000;
+    var positions1 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 1000;
+
+    const ecd1 = EntityCreationData2{
+        .healths = &healths0,
+        .positions = &positions1,
+    };
+
+    try world.createEntities(EntityCreationData2, ecd1);
+
     var damageSystem = DamageSystem.init();
+
+    var query = try world.queryAOS(struct{
+        pos: *PositionComponent,
+        vel: *VelocityComponent,
+    });
+
+    const timer = std.time.Timer.start() catch @panic("timer needed");
+    const start = timer.read();
+    for (query) |q| {
+        q.pos.pos[0] += q.vel.vel[0];
+        q.pos.pos[1] += q.vel.vel[1];
+        q.pos.pos[2] += q.vel.vel[2];
+    }
+    const end = timer.read();
+    warn("time: {}\n", .{end - start});
+    warn("----- ----- -----\n", .{});
 
     try world.registerSystem(&damageSystem.system);
 
