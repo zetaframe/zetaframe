@@ -8,8 +8,7 @@ const Vec2 = vec.Vec2;
 const Vec3 = vec.Vec3;
 const Vec4 = vec.Vec4;
 
-fn MatMixin(comptime Self: type, comptime T: type) type {
-    comptime const Vec = @typeInfo(Self).Struct.fields[0].field_type;
+fn MatMixin(comptime Self: type, comptime VecType: type, comptime T: type) type {
     return struct {
         pub fn clone(self: *Self) Self {
             var result = Self.Zero;
@@ -19,17 +18,17 @@ fn MatMixin(comptime Self: type, comptime T: type) type {
             return result;
         }
 
-        pub fn getIndex(self: *Self, comptime index: usize) Vec {
+        pub fn getIndex(self: *Self, comptime index: usize) VecType {
             assert(index < 4);
             return @field(self.*, @typeInfo(Self).Struct.fields[index].name);
         }
 
-        pub fn getIndexPtr(self: *Self, comptime index: usize) *Vec {
+        pub fn getIndexPtr(self: *Self, comptime index: usize) *VecType {
             assert(index < 4);
             return &@field(self.*, @typeInfo(Self).Struct.fields[index].name);
         }
 
-        pub fn setIndex(self: *Self, comptime index: usize, value: Vec) void {
+        pub fn setIndex(self: *Self, comptime index: usize, value: VecType) void {
             assert(index < 4);
             @field(self.*, @typeInfo(Self).Struct.fields[index].name) = value;
         }
@@ -37,7 +36,7 @@ fn MatMixin(comptime Self: type, comptime T: type) type {
         pub fn transpose(self: Self) Self {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field, i| {
-                inline for (@typeInfo(Vec).Struct.fields) |vec_field, j| {
+                inline for (@typeInfo(VecType).Struct.fields) |vec_field, j| {
                     result.getIndexPtr(j).setIndex(i, @field(@field(self, field.name), vec_field.name));
                 }
             }
@@ -90,7 +89,7 @@ fn MatMixin(comptime Self: type, comptime T: type) type {
 }
 
 /// 2x2 column major matrix
-/// 
+///
 ///  xy
 /// x00
 /// y00
@@ -121,7 +120,7 @@ pub fn Mat22(comptime T: type) type {
             .y = Vec2(T).Zero,
         };
 
-        usingnamespace MatMixin(Self, T);
+        usingnamespace MatMixin(Self, Vec2(T), T);
 
         pub fn new(x: Vec2(T), y: Vec2(T)) Self {
             return Self{
@@ -133,7 +132,7 @@ pub fn Mat22(comptime T: type) type {
 }
 
 /// 3x3 column major matrix
-/// 
+///
 ///  xyz
 /// x000
 /// y000
@@ -169,7 +168,7 @@ pub fn Mat33(comptime T: type) type {
             .z = Vec3(T).Zero,
         };
 
-        usingnamespace MatMixin(Self, T);
+        usingnamespace MatMixin(Self, Vec3(T), T);
 
         pub fn new(x: Vec3(T), y: Vec3(T), z: Vec3(T)) Self {
             return Self{
@@ -182,7 +181,7 @@ pub fn Mat33(comptime T: type) type {
 }
 
 /// 4x4 column major matrix
-/// 
+///
 ///  xyzw
 /// x0000
 /// y0000
@@ -223,7 +222,7 @@ pub fn Mat44(comptime T: type) type {
             .w = Vec4(T).Zero,
         };
 
-        usingnamespace MatMixin(Self, T);
+        usingnamespace MatMixin(Self, Vec4(T), T);
 
         pub fn new(x: Vec4(T), y: Vec4(T), z: Vec4(T), w: Vec4(T)) Self {
             return Self{
