@@ -42,16 +42,6 @@ const DamageSystem = struct {
     }
 };
 
-pub fn rtest() !void {
-    std.debug.warn("\n", .{});
-
-    try generalECSTest();
-    try lotsOfEntities();
-    try ecsBench();
-    try anyVecStoreTest();
-    try multiVecStoreTest();
-}
-
 test "generalECSTest" {
     std.debug.warn("\n", .{});
 
