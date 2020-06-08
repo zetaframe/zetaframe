@@ -3,7 +3,7 @@ usingnamespace @import("zetamath");
 const std = @import("std");
 const testing = std.testing;
 
-pub fn rtest() !void {
+test "math_test" {
     std.debug.warn("\n", .{});
 
     var vec3_1 = Vec3(f32).new(0, 0, 0);
@@ -32,11 +32,11 @@ pub fn rtest() !void {
 
     var rad = deg2rad(@as(u32, 360));
     var deg = rad2deg(@as(u32, 1));
-
-    try all_types();
 }
 
-fn all_types() !void {
+test "all_types" {
+    std.debug.warn("\n", .{});
+
     var vec2 = Vec2(f32).new(0, 0);
     var vec3 = Vec3(f32).new(0, 0, 0);
     var vec4 = Vec4(f32).new(0, 0, 0, 0);

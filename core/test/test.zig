@@ -42,21 +42,19 @@ const DamageSystem = struct {
     }
 };
 
-fn HungerSystem() void {
-    std.debug.warn("\nHungered!\n", .{});
-}
-
 pub fn rtest() !void {
     std.debug.warn("\n", .{});
 
     try generalECSTest();
-    // try lotsOfEntities();
-    // try ecsBench();
-    // try anyVecStoreTest();
-    // try multiVecStoreTest();
+    try lotsOfEntities();
+    try ecsBench();
+    try anyVecStoreTest();
+    try multiVecStoreTest();
 }
 
-fn generalECSTest() !void {
+test "generalECSTest" {
+    std.debug.warn("\n", .{});
+
     const EntityCreationData0 = struct {
         velocities: []VelocityComponent,
         position: []PositionComponent,
@@ -114,15 +112,14 @@ fn generalECSTest() !void {
     }
     const end = timer.read();
     warn("time: {}\n", .{end - start});
-    warn("----- ----- -----\n", .{});
 
     try world.registerSystem(&damageSystem.system);
 
     world.run();
 }
 
-fn lotsOfEntities() !void {
-    warn("----- lots_of_entities -----\n", .{});
+test "lotsOfEntities" {
+    warn("\n", .{});
     const EntityCreationData = struct {
         health: HealthComponent,
         energy: EnergyComponent,
@@ -151,11 +148,10 @@ fn lotsOfEntities() !void {
     const end = timer.read();
     warn("entities: {}\n", .{std.math.maxInt(u20)});
     warn("time: {}\n", .{end - start});
-    warn("----- ----- -----\n", .{});
 }
 
-fn ecsBench() !void {
-    warn("----- ecs_bench -----\n", .{});
+test "ecsBench" {
+    warn("\n", .{});
     const EntityCreationData = struct {
         velocities: []VelocityComponent,
         position: []PositionComponent,
@@ -191,10 +187,11 @@ fn ecsBench() !void {
 
     const end = timer.read();
     warn("time: {}\n", .{end - start});
-    warn("----- ----- -----\n", .{});
 }
 
-fn anyVecStoreTest() !void {
+test "anyVecStoreTest" {
+    std.debug.warn("\n", .{});
+    
     var store = AnyVecStore.init(u32, std.heap.page_allocator);
     defer store.deinit();
 
@@ -226,7 +223,9 @@ fn anyVecStoreTest() !void {
     testing.expect(store2.getIndex(u32, 0) == 77777);
 }
 
-fn multiVecStoreTest() !void {
+test "multiVecStoreTest" {
+    std.debug.warn("\n", .{});
+    
     var store = MultiVecStore.init(std.heap.page_allocator);
     defer store.deinit();
 

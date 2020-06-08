@@ -3,13 +3,7 @@ usingnamespace @import("zetarender");
 
 const std = @import("std");
 
-pub fn rtest() !void {
-    std.debug.warn("\n", .{});
-
-    try vulkan_backend();
-}
-
-fn vulkan_backend() !void {
+test "vulkan_backend" {
     std.debug.warn("\n", .{});
 
     const UniformBufferObject = packed struct {
