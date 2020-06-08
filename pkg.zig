@@ -42,7 +42,11 @@ pub fn addZetaModule(step: *LibExeObjStep, module: Module) void {
             step.linkSystemLibrary("vulkan");
 
             step.linkSystemLibrary("c++");
-            step.addObjectFile("zetaframe/render/lib/vma/vma.o");
+            if (target.isLinux()) {
+                render_test.addObjectFile("zetaframe/render/lib/vma/vma-linux.o");
+            } else if (target.isWindows()) {
+                render_test.addObjectFile("zetaframe/render/lib/vma/vma-windows.o");
+            }
         },
     }
 }

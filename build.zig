@@ -7,37 +7,38 @@ pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
 
-    const tests = b.addTest("test.zig");
-    tests.setTarget(target);
-    tests.setBuildMode(mode);
+    const core_test = b.addTest("core/test/test.zig");
+    core_test.setBuildMode(mode);
+    core_test.addPackage(zf.corepkg);
 
-    tests.addPackage(zf.corepkg);
-    tests.addPackage(zf.mathpkg);
-    tests.addPackage(zf.renderpkg);
+    const math_test = b.addTest("math/test/test.zig");
+    math_test.setBuildMode(mode);
+    math_test.addPackage(zf.mathpkg);
 
-    tests.linkSystemLibrary("c");
-    tests.linkSystemLibrary("glfw");
-    tests.linkSystemLibrary("vulkan");
-
-    tests.linkSystemLibrary("c++");
-
+    const render_test = b.addTest("render/test/test.zig");
+    render_test.setBuildMode(mode);
+    render_test.addPackage(zf.corepkg);
+    render_test.addPackage(zf.mathpkg);
+    render_test.addPackage(zf.renderpkg);
+    render_test.linkSystemLibrary("c");
+    render_test.linkSystemLibrary("glfw");
+    render_test.linkSystemLibrary("vulkan");
+    render_test.linkSystemLibrary("c++");
     if (target.isLinux()) {
-        tests.addObjectFile("render/lib/vma/vma-linux.o");
+        render_test.addObjectFile("render/lib/vma/vma-linux.o");
     } else if (target.isWindows()) {
-        tests.addObjectFile("render/lib/vma/vma-windows.o");
+        render_test.addObjectFile("render/lib/vma/vma-windows.o");
     }
 
     const test_step = b.step("test", "Run All tests");
-    test_step.dependOn(&tests.step);
+    test_step.dependOn(&core_test.step);
+    test_step.dependOn(&math_test.step);
+    test_step.dependOn(&render_test.step);
 
-    const tests_no_render = b.addTest("test.zig");
-    tests_no_render.setBuildMode(mode);
+    const test_only_render_step = b.step("test-only-render", "Run only render tests");
+    test_only_render_step.dependOn(&render_test.step);
 
-    tests_no_render.setFilter("0");
-
-    tests_no_render.addPackage(zf.corepkg);
-    tests_no_render.addPackage(zf.mathpkg);
-
-    const test_no_render = b.step("test-no-render", "Run all but render tests");
-    test_no_render.dependOn(&tests_no_render.step);
+    const test_no_render_step = b.step("test-no-render", "Run all but render tests");
+    test_no_render_step.dependOn(&core_test.step);
+    test_no_render_step.dependOn(&math_test.step);
 }
