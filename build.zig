@@ -1,7 +1,7 @@
 const std = @import("std");
 const Builder = std.build.Builder;
 
-const zf = @import("pkg.zig");
+const zf = @import("pkg.zig").Pkg(".");
 
 pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
@@ -9,26 +9,17 @@ pub fn build(b: *Builder) void {
 
     const core_test = b.addTest("core/test/test.zig");
     core_test.setBuildMode(mode);
-    core_test.addPackage(zf.corepkg);
+    zf.addZetaModule(render_test, .Core);
 
     const math_test = b.addTest("math/test/test.zig");
     math_test.setBuildMode(mode);
-    math_test.addPackage(zf.mathpkg);
+    zf.addZetaModule(render_test, .Math);
 
     const render_test = b.addTest("render/test/test.zig");
     render_test.setBuildMode(mode);
-    render_test.addPackage(zf.corepkg);
-    render_test.addPackage(zf.mathpkg);
-    render_test.addPackage(zf.renderpkg);
-    render_test.linkSystemLibrary("c");
-    render_test.linkSystemLibrary("glfw");
-    render_test.linkSystemLibrary("vulkan");
-    render_test.linkSystemLibrary("c++");
-    if (target.isLinux()) {
-        render_test.addObjectFile("render/lib/vma/vma-linux.o");
-    } else if (target.isWindows()) {
-        render_test.addObjectFile("render/lib/vma/vma-windows.o");
-    }
+    zf.addZetaModule(render_test, .Core);
+    zf.addZetaModule(render_test, .Math);
+    zf.addZetaModule(render_test, .Render);
 
     const test_step = b.step("test", "Run All tests");
     test_step.dependOn(&core_test.step);
