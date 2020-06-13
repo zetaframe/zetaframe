@@ -36,7 +36,7 @@ pub const UniformManager = struct {
     allocator: *Allocator,
     vallocator: *vma.Allocator,
 
-    gpu: Gpu,
+    gpu: *Gpu,
     
     pub fn new() Self {
 
@@ -48,7 +48,7 @@ pub const UniformManager = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, vallocator: *vma.Allocator, gpu: Gpu) !void {
+    pub fn init(self: *Self, allocator: *Allocator, vallocator: *vma.Allocator, gpu: *Gpu) !void {
         self.allocator = allocator;
         self.vallocator = vallocator;
 

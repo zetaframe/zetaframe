@@ -26,6 +26,18 @@ test "vulkan_backend" {
         }
     };
 
+    var simple_material = backend.Material.new(backend.Material.Description{
+        .shaders = .{
+            .vertex = try backend.Shader.init(std.heap.page_allocator, "render/test/shaders/vert.spv"),
+            .fragment = try backend.Shader.init(std.heap.page_allocator, "render/test/shaders/frag.spv"),
+        },
+        .inputs = &[_]backend.Material.Description.Input{
+            try backend.Pipeline.Settings.Input.init(Vertex, 0, std.heap.c_allocator),
+        },
+        .assembly = .{ .topology = .TRIANGLE_LIST },
+        .rasterizer = .{},
+    });
+
     var testWindow = windowing.Window.new("Vulkan Test", windowing.Size{ .width = 1280, .height = 720 });
     try testWindow.init();
     defer testWindow.deinit();
@@ -35,38 +47,26 @@ test "vulkan_backend" {
 
     var swapchain = backend.Swapchain.new();
     var renderpass = backend.RenderPass.new();
-    const pipelineSettings = backend.Pipeline.Settings{
-        .inputs = &[_]backend.Pipeline.Settings.Input{
-            try backend.Pipeline.Settings.Input.init(Vertex, 0, std.heap.c_allocator),
-        },
-        .assembly = backend.Pipeline.Settings.Assembly{
-            .topology = .TRIANGLE_LIST
-        },
-        .rasterizer = backend.Pipeline.Settings.Rasterizer{
 
-        }
-    };
-    var pipeline = backend.Pipeline.new(pipelineSettings, vert, frag);
-
-    var vertex1 = Vertex.new(zm.Vec2f.new(-0.5,- 0.5), zm.Vec3f.new(1.0, 0.0, 0.0));
+    var vertex1 = Vertex.new(zm.Vec2f.new(-0.5, -0.5), zm.Vec3f.new(1.0, 0.0, 0.0));
     var vertex2 = Vertex.new(zm.Vec2f.new(0.5, -0.5), zm.Vec3f.new(0.0, 1.0, 0.0));
     var vertex3 = Vertex.new(zm.Vec2f.new(0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 1.0));
     var vertex4 = Vertex.new(zm.Vec2f.new(-0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 0.0));
-    var vertexBuffer = backend.buffer.StagedBuffer(Vertex, .Vertex).new(&[_]Vertex{vertex1, vertex2, vertex3, vertex4});
+    var vertexBuffer = backend.buffer.StagedBuffer(Vertex, .Vertex).new(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
 
-    var indices = [_]u16{0, 1, 2, 2, 3, 0};
+    var indices = [_]u16{ 0, 1, 2, 2, 3, 0 };
     var indexBuffer = backend.buffer.StagedBuffer(u16, .Index).new(&indices);
 
     var command = backend.Command.new(&vertexBuffer.buf, &indexBuffer.buf);
 
-    var rendercore = backend.RenderCore.new(swapchain, renderpass, pipeline, command);
+    var rendercore = backend.RenderCore.new(swapchain, renderpass, command);
 
-    var vkbackend = backend.VkBackend.new(std.heap.c_allocator, "Vulkan Test", &testWindow, rendercore);
-    try vkbackend.init();
-    defer vkbackend.deinit();
+    var backend = backend.backend.new(std.heap.c_allocator, "Vulkan Test", &testWindow, rendercore);
+    try backend.init();
+    defer backend.deinit();
 
-    while(testWindow.isRunning()) {
+    while (testWindow.isRunning()) {
         testWindow.update();
-        try vkbackend.render();
+        try backend.render();
     }
 }

@@ -17,12 +17,12 @@ const VulkanError = vkbackend.VulkanError;
 const Gpu = @import("gpu.zig").Gpu;
 
 pub const Buffer = struct {
-    initFn: fn(self: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu) anyerror!void,
+    initFn: fn(self: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: *Gpu) anyerror!void,
     deinitFn: fn(self: *Buffer) void,
     bufferFn: fn(self: *Buffer) vk.Buffer,
     lenFn: fn(self: *Buffer) u32,
 
-    pub fn init(self: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu) !void {
+    pub fn init(self: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: *Gpu) !void {
         try self.initFn(self, allocator, vallocator, gpu);
     }
 
@@ -61,7 +61,7 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
         allocator: *Allocator,
         vallocator: *vma.VmaAllocator,
 
-        gpu: Gpu,
+        gpu: *Gpu,
 
         buffer: vk.Buffer,
         allocation: vma.VmaAllocation,
@@ -93,7 +93,7 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
             };
         }
 
-        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu) anyerror!void {
+        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: *Gpu) anyerror!void {
             const self = @fieldParentPtr(Self, "buf", buf);
 
             self.allocator = allocator;

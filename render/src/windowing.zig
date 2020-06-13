@@ -2,8 +2,6 @@ const std = @import("std");
 const testing = std.testing;
 const panic = std.debug.panic;
 
-const backend = @import("backend/backend.zig");
-
 const glfw = @import("include/glfw.zig");
 
 pub const WindowError = error{

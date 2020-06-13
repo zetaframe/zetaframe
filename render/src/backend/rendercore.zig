@@ -26,23 +26,19 @@ pub const RenderCore = struct {
     vallocator: *vma.VmaAllocator,
 
     swapchain: Swapchain,
-    render_pass: RenderPass,
-    pipeline: Pipeline,
     command: Command,
 
     framebuffers: []vk.Framebuffer,
 
-    gpu: Gpu,
+    gpu: *Gpu,
     window: *windowing.Window,
 
-    pub fn new(swapchain: Swapchain, renderPass: RenderPass, pipeline: Pipeline, command: Command) Self {
+    pub fn new(swapchain: Swapchain, command: Command) Self {
         return Self{
             .allocator = undefined,
             .vallocator = undefined,
 
             .swapchain = swapchain,
-            .render_pass = renderPass,
-            .pipeline = pipeline,
             .command = command,
 
             .framebuffers = undefined,
@@ -52,22 +48,17 @@ pub const RenderCore = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, vallocator: *vma.VmaAllocator, recreate: bool, gpu: Gpu, window: *windowing.Window) !void {
+    pub fn init(self: *Self, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: *Gpu, window: *windowing.Window, recreate: bool) !void {
         self.allocator = allocator;
 
         self.gpu = gpu;
         self.window = window;
 
         try self.swapchain.init(self.allocator, self.gpu, self.window);
-        try self.render_pass.init(self.allocator, self.gpu, self.swapchain.image_format);
-
-        if(!recreate){
-            try self.pipeline.init(self.allocator, self.gpu, self.swapchain.extent, self.swapchain.image_format, self.render_pass.render_pass, self.window.size);
-        }
 
         try self.createFramebuffers();
 
-        try self.command.init(self.allocator, vallocator, self.gpu, self.swapchain.extent, self.framebuffers, self.render_pass.render_pass, self.pipeline.pipeline);
+        try self.command.init(self.allocator, vallocator, self.gpu, self.swapchain.extent, self.framebuffers);
     }
 
     pub fn deinit(self: *Self, recreate: bool) void {
@@ -75,10 +66,6 @@ pub const RenderCore = struct {
 
         for (self.framebuffers) |framebuffer| {
             vk.DestroyFramebuffer(self.gpu.device, framebuffer, null);
-        }
-
-        if (!recreate) {
-            self.pipeline.deinit();
         }
 
         self.render_pass.deinit();

@@ -25,7 +25,7 @@ pub const Swapchain = struct {
 
     swapchain: vk.SwapchainKHR,
 
-    gpu: Gpu,
+    gpu: *Gpu,
     window: *windowing.Window,
 
     images: []vk.Image,
@@ -53,7 +53,7 @@ pub const Swapchain = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, gpu: Gpu, window: *windowing.Window) !void {
+    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, window: *windowing.Window) !void {
         self.allocator = allocator;
 
         self.gpu = gpu;

@@ -18,17 +18,17 @@ const vma = @import("../include/vma.zig");
 
 const Gpu = @import("gpu.zig").Gpu;
 const Buffer = @import("buffer.zig").Buffer;
+const MaterialManager = @import("material.zig").MaterialManager;
 
 pub const Command = struct {
     const Self = @This();
     allocator: *Allocator,
     vallocator: *vma.VmaAllocator,
 
-    gpu: Gpu,
+    gpu: *Gpu,
+    material_manager: *MaterialManager,
     extent: vk.Extent2D,
     framebuffers: []vk.Framebuffer,
-    render_pass: vk.RenderPass,
-    pipeline: vk.Pipeline,
 
     vertex_buffer: *Buffer,
     index_buffer: *Buffer,
@@ -41,10 +41,9 @@ pub const Command = struct {
             .vallocator = undefined,
 
             .gpu = undefined,
+            .material_manager = undefined,
             .extent = undefined,
             .framebuffers = undefined,
-            .render_pass = undefined,
-            .pipeline = undefined,
 
             .vertex_buffer = vertexBuffer,
             .index_buffer = indexBuffer,
@@ -53,15 +52,14 @@ pub const Command = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu, extent: vk.Extent2D, framebuffers: []vk.Framebuffer, renderPass: vk.RenderPass, pipeline: vk.Pipeline) !void {
+    pub fn init(self: *Self, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: *Gpu, materialManager: *MaterialManager, extent: vk.Extent2D, framebuffers: []vk.Framebuffer) !void {
         self.allocator = allocator;
         self.vallocator = vallocator;
 
         self.gpu = gpu;
+        self.material_manager = materialManager;
         self.extent = extent;
         self.framebuffers = framebuffers;
-        self.render_pass = renderPass;
-        self.pipeline = pipeline;
 
         try self.vertex_buffer.init(self.allocator, self.vallocator, self.gpu);
         try self.index_buffer.init(self.allocator, self.vallocator, self.gpu);

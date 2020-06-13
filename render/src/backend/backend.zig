@@ -5,31 +5,27 @@ const Allocator = std.mem.Allocator;
 const testing = std.testing;
 const panic = std.debug.panic;
 
+const vk = @import("../include/vk.zig");
+const VK_SUCCESS = vk.Result.SUCCESS;
+const vma = @import("../include/vma.zig");
+const glfw = @import("../include/glfw.zig");
+
 const windowing = @import("../windowing.zig");
 const shader = @import("shader.zig");
 
+// Re-exports
 pub const Shader = @import("shader.zig").Shader;
-
 pub const Gpu = @import("gpu.zig").Gpu;
 pub const RenderPass = @import("renderpass.zig").RenderPass;
-
 pub const Pipeline = @import("pipeline.zig").Pipeline;
-
 const swapchain = @import("swapchain.zig");
 pub const Swapchain = swapchain.Swapchain;
-
 pub const Command = @import("command.zig").Command;
-
 pub const RenderCore = @import("rendercore.zig").RenderCore;
-
 pub const buffer = @import("buffer.zig");
-
-const vk = @import("../include/vk.zig");
-const VK_SUCCESS = vk.Result.SUCCESS;
-
-const vma = @import("../include/vma.zig");
-
-const glfw = @import("../include/glfw.zig");
+const material = @import("material.zig");
+pub const Material = material.Material;
+pub const MaterialInstance = material.MaterialInstance;
 
 pub const VulkanError = error{
     InstanceCreationFailed,
@@ -89,7 +85,9 @@ const validationLayers = [_][*:0]const u8{"VK_LAYER_LUNARG_standard_validation"}
 const deviceExtensions = [_][*:0]const u8{vk.VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 const MAX_FRAMES_IN_FLIGHT: u32 = 2;
 
-pub const VkBackend = struct {
+// Vulkan Backend
+pub const Backend = struct {
+    const Self = @This();
     allocator: *Allocator,
     vallocator: vma.VmaAllocator,
 
@@ -110,8 +108,9 @@ pub const VkBackend = struct {
     in_flight_images: []?vk.Fence,
     current_frame: usize = 0,
 
-    pub fn new(allocator: *Allocator, name: [*c]const u8, window: *windowing.Window, rendercore: RenderCore) VkBackend {
-        return VkBackend{
+    /// Create a new vulkan renderer backend with specified render core
+    pub fn new(allocator: *Allocator, name: [*c]const u8, window: *windowing.Window, rendercore: RenderCore) Self {
+        return Self{
             .allocator = allocator,
             .vallocator = undefined,
 
@@ -133,9 +132,9 @@ pub const VkBackend = struct {
         };
     }
 
-    pub fn init(self: *VkBackend) !void {
+    pub fn init(self: *Self) !void {
         try self.createInstance();
-        
+
         self.gpu = Gpu.new(self.instance, self.window);
         try self.gpu.init(self.allocator);
 
@@ -161,16 +160,16 @@ pub const VkBackend = struct {
             .flags = 0,
         };
 
-        if(vma.vmaCreateAllocator(&allocInfo, &self.vallocator) != VK_SUCCESS) {
+        if (vma.vmaCreateAllocator(&allocInfo, &self.vallocator) != VK_SUCCESS) {
             return VulkanError.CreateAllocatorFailed;
         }
 
         try self.rendercore.init(self.allocator, &self.vallocator, false, self.gpu, self.window);
-        
+
         try self.createSyncObjects();
     }
 
-    pub fn deinit(self: *VkBackend) void {
+    pub fn deinit(self: *Self) void {
         vk.DeviceWaitIdle(self.gpu.device) catch unreachable;
 
         self.rendercore.deinit(false);
@@ -184,28 +183,28 @@ pub const VkBackend = struct {
 
         self.allocator.free(self.in_flight_images);
 
-        vma.vmaDestroyAllocator(self.vallocator);   
+        vma.vmaDestroyAllocator(self.vallocator);
 
-        self.gpu.deinit();  
+        self.gpu.deinit();
 
         vk.DestroyInstance(self.instance, null);
     }
 
-    fn recreateSwapchain(self: *VkBackend) !void {
+    fn recreateSwapchain(self: *Self) !void {
         try vk.DeviceWaitIdle(self.gpu.device);
         self.rendercore.deinit(true);
 
         try self.rendercore.init(self.allocator, &self.vallocator, true, self.gpu, self.window);
     }
 
-    pub fn render(self: *VkBackend) !void {
+    pub fn render(self: *Self) !void {
         _ = try vk.WaitForFences(self.gpu.device, @ptrCast(*[1]vk.Fence, &self.in_flight_fences[self.current_frame]), vk.TRUE, std.math.maxInt(u64));
 
         var imageIndex: u32 = 0;
         var result = vk.vkAcquireNextImageKHR(self.gpu.device, self.rendercore.swapchain.swapchain, std.math.maxInt(u64), self.image_available_semaphores[self.current_frame], null, &imageIndex);
         if (result == .ERROR_OUT_OF_DATE_KHR) {
             try self.recreateSwapchain();
-        } else if(result != VK_SUCCESS and result != .SUBOPTIMAL_KHR) {
+        } else if (result != VK_SUCCESS and result != .SUBOPTIMAL_KHR) {
             return VulkanError.AcquireImageFailed;
         }
 
@@ -217,11 +216,11 @@ pub const VkBackend = struct {
         }
 
         var waitSemaphores = [_]vk.Semaphore{self.image_available_semaphores[self.current_frame]};
-        var waitStages = [_]vk.PipelineStageFlags{vk.PipelineStageFlags{.colorAttachmentOutput = true}};
+        var waitStages = [_]vk.PipelineStageFlags{vk.PipelineStageFlags{ .colorAttachmentOutput = true }};
         const waitStageMask: [*]align(4) vk.PipelineStageFlags = @alignCast(4, &waitStages);
 
         const signalSemaphores = [_]vk.Semaphore{self.render_finished_semaphores[self.current_frame]};
-        
+
         var submitInfos = [_]vk.SubmitInfo{vk.SubmitInfo{
             .waitSemaphoreCount = waitSemaphores.len,
             .pWaitSemaphores = &waitSemaphores,
@@ -236,7 +235,7 @@ pub const VkBackend = struct {
 
         try vk.ResetFences(self.gpu.device, &[_]vk.Fence{self.in_flight_fences[self.current_frame]});
 
-        if(vk.vkQueueSubmit(self.gpu.graphics_queue, submitInfos.len, &submitInfos, self.in_flight_fences[self.current_frame]) != VK_SUCCESS) {
+        if (vk.vkQueueSubmit(self.gpu.graphics_queue, submitInfos.len, &submitInfos, self.in_flight_fences[self.current_frame]) != VK_SUCCESS) {
             return VulkanError.SubmitBufferFailed;
         }
 
@@ -254,14 +253,14 @@ pub const VkBackend = struct {
         result = vk.vkQueuePresentKHR(self.gpu.present_queue, &presentInfo);
         if (result == .ERROR_OUT_OF_DATE_KHR) {
             try self.recreateSwapchain();
-        } else if(result != VK_SUCCESS and result != .SUBOPTIMAL_KHR) {
+        } else if (result != VK_SUCCESS and result != .SUBOPTIMAL_KHR) {
             return VulkanError.PresentFailed;
         }
 
         self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
 
-    fn createInstance(self: *VkBackend) !void {
+    fn createInstance(self: *Self) !void {
         if (enableValidationLayers and !(try checkValidationLayerSupport(self.allocator))) {
             return VulkanError.ValidationLayersNotAvailable;
         }
@@ -289,11 +288,11 @@ pub const VkBackend = struct {
         self.instance = try vk.CreateInstance(createInfo, null);
     }
 
-    fn createSyncObjects(self: *VkBackend) !void {
+    fn createSyncObjects(self: *Self) !void {
         const semaphoreInfo = vk.SemaphoreCreateInfo{};
 
         const fenceInfo = vk.FenceCreateInfo{
-            .flags = vk.FenceCreateFlags{.signaled = true},
+            .flags = vk.FenceCreateFlags{ .signaled = true },
         };
 
         self.in_flight_images = try self.allocator.alloc(?vk.Fence, self.rendercore.swapchain.images.len);

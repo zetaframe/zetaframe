@@ -12,91 +12,17 @@ const vk = @import("../include/vk.zig");
 const VK_SUCCESS = vk.enum_VkResult.VK_SUCCESS;
 
 const Gpu = @import("gpu.zig").Gpu;
+const Description = @import("material.zig").Material.Description;
 
 pub const Pipeline = struct {
-    pub const Settings = struct {
-        pub const Input = struct {
-            pub const BindingDescription = struct {
-                binding: u32,
-                stride: u32,
-            };
-
-            pub const AttributeDescription = struct {
-                format: vk.Format,
-                offset: u32,
-            };
-
-            binding_description: BindingDescription,
-            attribute_descriptions: []AttributeDescription,
-
-            pub fn init(comptime T: type, binding: u32, allocator: *Allocator) !Input {
-                if (comptime !trait.is(.Struct)(T)) {
-                    @compileError("Vertex Input Type must be a packed struct");
-                }
-                if (comptime !trait.isPacked(T)) {
-                    @compileError("Vertex Input Type must be a packed struct");
-                }
-
-                var attributeDescriptions = std.ArrayList(AttributeDescription).init(allocator);
-
-                inline for (@typeInfo(T).Struct.fields) |field, i| {
-                    var format: vk.Format = undefined;
-                    switch (@typeInfo(field.field_type).Struct.fields[0].field_type) {
-                        f32 => switch (@typeInfo(field.field_type).Struct.fields.len) {
-                            1 => format = .R32_SFLOAT,
-                            2 => format = .R32G32_SFLOAT,
-                            3 => format = .R32G32B32_SFLOAT,
-                            4 => format = .R32G32B32A32_SFLOAT,
-                            else => @compileError("Invalid Type for Vertex Input"),
-                        },
-                        i32 => switch (@typeInfo(field.field_type).Struct.fields.len) {
-                            1 => format = .R32_SINT,
-                            2 => format = .R32G32_SINT,
-                            3 => format = .R32G32B32_SINT,
-                            4 => format = .R32G32B32A32_SINT,
-                            else => @compileError("Invalid Type for Vertex Input"),
-                        },
-                        else => @compileError("Invalid Type for Vertex Input"),
-                    }
-                    try attributeDescriptions.append(AttributeDescription{
-                        .format = format,
-                        .offset = @intCast(u32, @byteOffsetOf(T, field.name)),
-                    });
-                }
-
-                const ret = Input{
-                    .binding_description = BindingDescription{
-                        .binding = binding,
-                        .stride = @sizeOf(T),
-                    },
-                    .attribute_descriptions = attributeDescriptions.toOwnedSlice(),
-                };
-
-                attributeDescriptions.deinit();
-
-                return ret;
-            }
-        };
-
-        pub const Assembly = struct {
-            topology: vk.PrimitiveTopology,
-        };
-
-        pub const Rasterizer = struct {};
-
-        inputs: []Input,
-        assembly: Assembly,
-        rasterizer: Rasterizer,
-    };
-
     const Self = @This();
     allocator: *Allocator,
 
-    settings: Settings,
+    description: Description,
 
     pipeline: vk.Pipeline,
 
-    gpu: Gpu,
+    gpu: *Gpu,
     extent: vk.Extent2D,
     swapchain_image_format: vk.Format,
     size: windowing.Size,
@@ -121,11 +47,11 @@ pub const Pipeline = struct {
 
     pipeline_layout: vk.PipelineLayout,
 
-    pub fn new(settings: Settings, vert_shader: shader.Shader, fragment_shader: shader.Shader) Self {
+    pub fn new(description: Description) Self {
         return Self{
             .allocator = undefined,
 
-            .settings = settings,
+            .description = description,
 
             .pipeline = undefined,
 
@@ -134,11 +60,11 @@ pub const Pipeline = struct {
             .swapchain_image_format = undefined,
             .size = undefined,
 
-            .vert_shader = vert_shader,
+            .vert_shader = description.shaders.vertex,
             .vert_shader_module = undefined,
             .vert_shader_stage_info = undefined,
 
-            .fragment_shader = fragment_shader,
+            .fragment_shader = description.shaders.fragment,
             .fragment_shader_module = undefined,
             .fragment_shader_stage_info = undefined,
 
@@ -156,7 +82,7 @@ pub const Pipeline = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, gpu: Gpu, extent: vk.Extent2D, swapchainImageFormat: vk.Format, renderPass: vk.RenderPass, size: windowing.Size) !void {
+    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, extent: vk.Extent2D, swapchainImageFormat: vk.Format, renderPass: vk.RenderPass, size: windowing.Size) !void {
         self.allocator = allocator;
 
         self.gpu = gpu;
@@ -246,19 +172,19 @@ pub const Pipeline = struct {
         var bindingDescriptions = std.ArrayList(vk.VertexInputBindingDescription).init(self.allocator);
         var attributeDescriptions = std.ArrayList(vk.VertexInputAttributeDescription).init(self.allocator);
 
-        for (self.settings.inputs) |input, i| {
+        for (self.description.inputs) |input, i| {
             try bindingDescriptions.append(vk.VertexInputBindingDescription{
-                .binding = self.settings.inputs[i].binding_description.binding,
-                .stride = self.settings.inputs[i].binding_description.stride,
+                .binding = self.description.inputs[i].binding_description.binding,
+                .stride = self.description.inputs[i].binding_description.stride,
                 .inputRate = .VERTEX,
             });
 
-            for (self.settings.inputs[i].attribute_descriptions) |desc, j| {
+            for (self.description.inputs[i].attribute_descriptions) |desc, j| {
                 try attributeDescriptions.append(vk.VertexInputAttributeDescription{
-                    .binding = self.settings.inputs[i].binding_description.binding,
+                    .binding = self.description.inputs[i].binding_description.binding,
                     .location = @intCast(u32, j),
-                    .format = self.settings.inputs[i].attribute_descriptions[j].format,
-                    .offset = self.settings.inputs[i].attribute_descriptions[j].offset,
+                    .format = self.description.inputs[i].attribute_descriptions[j].format,
+                    .offset = self.description.inputs[i].attribute_descriptions[j].offset,
                 });
             }
         }
@@ -278,7 +204,7 @@ pub const Pipeline = struct {
         };
 
         self.input_assembly_info = vk.PipelineInputAssemblyStateCreateInfo{
-            .topology = self.settings.assembly.topology,
+            .topology = self.description.assembly.topology,
 
             .primitiveRestartEnable = vk.FALSE,
         };
