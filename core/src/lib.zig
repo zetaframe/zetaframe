@@ -161,10 +161,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     .priority = @typeInfo(T).Struct.fields.len,
                 };
 
-                var i: usize = 0;
-                while (i < @field(components, @typeInfo(T).Struct.fields[0].name).len) : (i += 1) {
-                    self.entities[self.current_entityid + i] = entity;
-                }
+                mem.set(?Entity, self.entities[self.current_entityid..self.current_entityid+@field(components, @typeInfo(T).Struct.fields[0].name).len], entity);
 
                 self.current_entityid += @intCast(IdType, @field(components, @typeInfo(T).Struct.fields[0].name).len);
 
@@ -208,6 +205,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             }
 
             /// Adds a single component to an entity
+            /// Invalidates pointers to the storage that you are adding to
             pub fn addComponentToEntity(self: *Self, entity: *Entity, comptime T: type, component: T) !void {
                 var index = self.component_map.getValue(@typeName(T)) orelse return error.ComponentDoesNotExist;
                 _ = try self.component_storages.getIndexPtr(ComponentStorage(T), index).add(entity, component);
@@ -220,6 +218,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             ///     health: HealthComponent,
             ///     position: PositionComponent,
             ///}
+            /// Invalidates pointers to the storages that you are adding to
             pub fn addComponentsToEntity(self: *Self, entity: *Entity, comptime T: type, components: T) !void {
                 inline for (@typeInfo(T).Struct.fields) |field| {
                     const FieldT = field.field_type;
