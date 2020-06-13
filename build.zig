@@ -9,11 +9,11 @@ pub fn build(b: *Builder) void {
 
     const core_test = b.addTest("core/test/test.zig");
     core_test.setBuildMode(mode);
-    zf.addZetaModule(render_test, .Core);
+    zf.addZetaModule(core_test, .Core);
 
     const math_test = b.addTest("math/test/test.zig");
     math_test.setBuildMode(mode);
-    zf.addZetaModule(render_test, .Math);
+    zf.addZetaModule(math_test, .Math);
 
     const render_test = b.addTest("render/test/test.zig");
     render_test.setBuildMode(mode);
