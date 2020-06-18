@@ -12,20 +12,24 @@ const EnergyComponent = struct {
     energy: usize,
 };
 const PositionComponent = struct {
-    pos: [3]f32,
+    x: f32,
+    y: f32,
+    z: f32,
 };
 const VelocityComponent = struct {
-    vel: [3]f32,
+    x: f32,
+    y: f32,
+    z: f32,
 };
 
-const ECS = @import("zetacore").Schema(u20, .{
+const ECS = @import("zetacore").Schema(u24, .{
     HealthComponent,
     EnergyComponent,
     PositionComponent,
     VelocityComponent,
 });
 
-const DamageSystem = struct {
+const PhysicsSystem = struct {
     const Self = @This();
     system: ECS.System,
 
@@ -37,151 +41,120 @@ const DamageSystem = struct {
         };
     }
 
-    fn run(sys: *ECS.System) void {
-        std.debug.warn("\nDamaged!\n", .{});
+    fn run(sys: *ECS.System, world: *ECS.World) !void {
+        var query = try world.queryAOS(struct {
+            pos: *PositionComponent,
+            vel: *VelocityComponent,
+        });
+        defer query.deinit();
+
+        var timer = try std.time.Timer.start();
+        for (query.items) |q| {
+            q.pos.x += q.vel.x;
+            q.pos.y += q.vel.y;
+            q.pos.z += q.vel.z;
+        }
+        const end = timer.lap();
+        warn("time: \t{d}\n", .{@intToFloat(f64, end) / 1000000000});
     }
 };
 
 test "generalECSTest" {
     std.debug.warn("\n", .{});
 
-    const EntityCreationData0 = struct {
-        velocities: []VelocityComponent,
-        position: []PositionComponent,
-    };
-
-    const EntityCreationData1 = struct {
-        health: HealthComponent,
-    };
-
-    const EntityCreationData2 = struct {
-        healths: []HealthComponent,
-        positions: []PositionComponent,
-    };
-
-    var world = try ECS.World.init(std.heap.page_allocator);
-    defer world.deinit();
-
-    var velocities0 = [_]VelocityComponent{VelocityComponent{ .vel = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
-    var positions0 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
-
-    const ecd0 = EntityCreationData0{
-        .velocities = &velocities0,
-        .position = &positions0,
-    };
-
-    try world.createEntities(EntityCreationData0, ecd0);
-
-    var entity0 = try world.createEntity(EntityCreationData1, EntityCreationData1{
-        .health = HealthComponent{ .health = 20 },
-    });
-
-    var healths0 = [_]HealthComponent{HealthComponent{ .health = 20 }} ** 1000;
-    var positions1 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 1000;
-
-    const ecd1 = EntityCreationData2{
-        .healths = &healths0,
-        .positions = &positions1,
-    };
-
-    try world.createEntities(EntityCreationData2, ecd1);
-
-    var damageSystem = DamageSystem.init();
-
-    var query = try world.queryAOS(struct{
-        pos: *PositionComponent,
-        vel: *VelocityComponent,
-    });
-
-    const timer = std.time.Timer.start() catch @panic("timer needed");
-    const start = timer.read();
-    for (query) |q| {
-        q.pos.pos[0] += q.vel.vel[0];
-        q.pos.pos[1] += q.vel.vel[1];
-        q.pos.pos[2] += q.vel.vel[2];
-    }
-    const end = timer.read();
-    warn("time: {}\n", .{end - start});
-
-    try world.registerSystem(&damageSystem.system);
-
-    world.run();
-}
-
-test "lotsOfEntities" {
-    warn("\n", .{});
-    const EntityCreationData = struct {
-        health: HealthComponent,
-        energy: EnergyComponent,
-        position: PositionComponent,
-    };
-    const timer = std.time.Timer.start() catch @panic("timer needed");
-    const start = timer.read();
-
     var world = try ECS.World.init(std.heap.page_allocator);
     defer world.deinit();
 
     var i: usize = 0;
-    while (i < std.math.maxInt(u20) - 1) : (i += 1) {
-        _ = try world.createEntity(EntityCreationData, EntityCreationData{
-            .health = HealthComponent{ .health = i },
-            .energy = EnergyComponent{ .energy = i * 2 },
-            .position = PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } },
+    while (i < 10000) : (i += 1) {
+        _ = try world.createEntity(.{
+            VelocityComponent{ .x = 1.0, .y = 1.0, .z = 1.0 },
+            PositionComponent{ .x = 0.0, .y = 0.0, .z = 0.0 },
         });
     }
 
-    i = 0;
-    while (i < std.math.maxInt(u20) - 1) : (i += 1) {
-        try world.deleteEntity(ECS.Entity{ .id = @intCast(u20, i), .internal = 0, .priority = 0 });
-    }
+    var entity0 = try world.createEntity(.{
+        HealthComponent{ .health = 20 },
+    });
 
-    const end = timer.read();
-    warn("entities: {}\n", .{std.math.maxInt(u20)});
-    warn("time: {}\n", .{end - start});
+    var healths1 = try std.heap.page_allocator.alloc(HealthComponent, 10);
+    std.mem.set(HealthComponent, healths1, HealthComponent{ .health = 20 });
+    try world.createEntities(.{
+        healths1,
+    });
+
+    var physicsSystem = PhysicsSystem.init();
+
+    try world.registerSystem(&physicsSystem.system);
+
+    try world.run();
+
+    // Check to make sure that the iteration actually did something
+    var query = try world.queryAOS(struct {
+        pos: *PositionComponent,
+        vel: *VelocityComponent,
+    });
+    defer query.deinit();
+
+    for (query.items) |q| {
+        testing.expectEqual(q.pos.x, q.vel.x);
+    }
 }
 
 test "ecsBench" {
     warn("\n", .{});
-    const EntityCreationData = struct {
-        velocities: []VelocityComponent,
-        position: []PositionComponent,
-    };
-
-    const EntityCreationData2 = struct {
-        position: []PositionComponent,
-    };
-
-    const timer = std.time.Timer.start() catch @panic("timer needed");
-    const start = timer.read();
 
     var world = try ECS.World.init(std.heap.page_allocator);
     defer world.deinit();
 
-    var velocities0 = [_]VelocityComponent{VelocityComponent{ .vel = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
-    var positions0 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 10000;
+    var velocities0 = try std.heap.page_allocator.alloc(VelocityComponent, 1000000);
+    std.mem.set(VelocityComponent, velocities0, VelocityComponent{ .x = 1.0, .y = 1.0, .z = 1.0 });
+    var positions0 = try std.heap.page_allocator.alloc(PositionComponent, 1000000);
+    std.mem.set(PositionComponent, positions0, PositionComponent{ .x = 0.0, .y = 0.0, .z = 0.0 });
 
-    const ecd0 = EntityCreationData{
-        .velocities = &velocities0,
-        .position = &positions0,
-    };
+    var timer = try std.time.Timer.start();
 
-    try world.createEntities(EntityCreationData, ecd0);
+    try world.createEntities(.{
+        positions0,
+        velocities0,
+    });
 
-    var positions1 = [_]PositionComponent{PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } }} ** 90000;
+    var end = timer.lap();
+    warn("create: \t{d}\n", .{@intToFloat(f64, end) / 1000000000});
 
-    const ecd1 = EntityCreationData2{
-        .position = &positions1,
-    };
+    std.heap.page_allocator.free(velocities0);
+    std.heap.page_allocator.free(positions0);
 
-    try world.createEntities(EntityCreationData2, ecd1);
+    var query = try world.queryAOS(struct {
+        pos: *PositionComponent,
+        vel: *VelocityComponent,
+    });
+    defer query.deinit();
 
-    const end = timer.read();
-    warn("time: {}\n", .{end - start});
+    timer.reset();
+    for (query.items) |q| {
+        q.pos.x += q.vel.x;
+        q.pos.y += q.vel.y;
+        q.pos.z += q.vel.z;
+    }
+    end = timer.lap();
+    warn("query_aos (iter): \t{d}\n", .{@intToFloat(f64, end) / 1000000000});
+
+    // Check to make sure that the iteration actually did something
+    var query2 = try world.queryAOS(struct{
+        pos: *PositionComponent,
+        vel: *VelocityComponent,
+    });
+    defer query2.deinit();
+
+    for (query2.items) |q| {
+        testing.expectEqual(q.pos.x, q.vel.x);
+    }
 }
 
 test "anyVecStoreTest" {
     std.debug.warn("\n", .{});
-    
+
     var store = AnyVecStore.init(u32, std.heap.page_allocator);
     defer store.deinit();
 
@@ -215,23 +188,23 @@ test "anyVecStoreTest" {
 
 test "multiVecStoreTest" {
     std.debug.warn("\n", .{});
-    
+
     var store = MultiVecStore.init(std.heap.page_allocator);
     defer store.deinit();
 
     try store.append(u32, 11111);
     try store.append(u32, 22222);
     try store.append(u32, 33333);
-    try store.append(PositionComponent, PositionComponent{ .pos = [3]f32{ 0.0, 0.0, 0.0 } });
-    try store.append(PositionComponent, PositionComponent{ .pos = [3]f32{ 1.0, 1.0, 1.0 } });
+    try store.append(PositionComponent, PositionComponent{ .x = 0.0, .y = 0.0, .z = 0.0 });
+    try store.append(PositionComponent, PositionComponent{ .x = 1.0, .y = 1.0, .z = 1.0 });
     try store.append(u32, 44444);
     try store.append(u32, 55555);
 
     testing.expect(store.getIndex(u32, 0) == 11111);
     testing.expect(store.getIndex(u32, 1) == 22222);
     testing.expect(store.getIndex(u32, 2) == 33333);
-    testing.expect(store.getIndex(PositionComponent, 3).pos[0] == 0.0);
-    testing.expect(store.getIndex(PositionComponent, 4).pos[1] == 1.0);
+    testing.expect(store.getIndex(PositionComponent, 3).x == 0.0);
+    testing.expect(store.getIndex(PositionComponent, 4).x == 1.0);
     testing.expect(store.getIndex(u32, 5) == 44444);
     testing.expect(store.getIndex(u32, 6) == 55555);
 

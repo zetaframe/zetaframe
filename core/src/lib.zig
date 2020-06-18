@@ -24,7 +24,6 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
         pub const Entity = struct {
             id: IdType,
             internal: IdType,
-            priority: IdType = 0,
         };
 
         pub const World = struct {
@@ -95,13 +94,15 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             //----- Entities
 
             /// Create a single entity with components
-            /// Components are declared with a struct
+            /// Components are passed as a tuple
             /// Ex:
-            /// struct {
-            ///     health: HealthComponent,
-            ///     position: PositionComponent,
+            /// .{
+            ///     @as(HealthComponent, health),
+            ///     @as(PositionComponent, position),
             ///}
-            pub fn createEntity(self: *Self, comptime T: type, components: T) !Entity {
+            pub fn createEntity(self: *Self, components: var) !Entity {
+                const T = @TypeOf(components);
+
                 var entity: Entity = undefined;
                 if (self.entities_deleted == 0) {
                     entity = Entity{
@@ -135,42 +136,42 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     }
                 }
 
-                entity.priority = @typeInfo(T).Struct.fields.len;
-
                 inline for (@typeInfo(T).Struct.fields) |field| {
                     const FieldT = field.field_type;
                     var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
 
-                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).add(entity, @field(components, field.name));
+                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).add(entity.id, @field(components, field.name));
                 }
 
                 return entity;
             }
 
             /// Create multiple entities with components
-            /// Components are declared with a struct
+            /// Components are passed as a tuple of slices
             /// Ex:
-            /// struct {
-            ///     healths: []HealthComponent,
-            ///     positions: []PositionComponent,
+            /// .{
+            ///     @as([]HealthComponent, &healths),
+            ///     @as([]PositionComponent, &positions),
             ///}
-            pub fn createEntities(self: *Self, comptime T: type, components: T) !void {
-                const entity = Entity{
-                    .id = self.current_entityid,
-                    .internal = self.current_entityid,
-                    .priority = @typeInfo(T).Struct.fields.len,
-                };
+            pub fn createEntities(self: *Self, components: var) !void {
+                const T = @TypeOf(components);
 
-                mem.set(?Entity, self.entities[self.current_entityid..self.current_entityid+@field(components, @typeInfo(T).Struct.fields[0].name).len], entity);
-
-                self.current_entityid += @intCast(IdType, @field(components, @typeInfo(T).Struct.fields[0].name).len);
+                var i: IdType = 0;
+                while (i < @field(components, @typeInfo(T).Struct.fields[0].name).len) : (i += 1) {
+                    self.entities[self.current_entityid + i] = Entity{
+                        .id = self.current_entityid + i,
+                        .internal = self.current_entityid + i,
+                    };
+                }
 
                 inline for (@typeInfo(T).Struct.fields) |field| {
                     const FieldT = @typeInfo(field.field_type).Pointer.child;
                     var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
 
-                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).addSlice(entity, @field(components, field.name));
+                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).addSlice(self.current_entityid, @field(components, field.name));
                 }
+
+                self.current_entityid += @intCast(IdType, @field(components, @typeInfo(T).Struct.fields[0].name).len);
             }
 
             pub fn deleteEntity(self: *Self, entity: Entity) !void {
@@ -188,7 +189,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 self.entities_deleted += 1;
 
                 inline for (CompTypes) |T, i| {
-                    _ = self.component_storages.getIndexPtr(ComponentStorage(T), i).remove(entity) catch null;
+                    _ = self.component_storages.getIndexPtr(ComponentStorage(T), i).remove(entity.id) catch null;
                 }
             }
 
@@ -208,7 +209,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             /// Invalidates pointers to the storage that you are adding to
             pub fn addComponentToEntity(self: *Self, entity: *Entity, comptime T: type, component: T) !void {
                 var index = self.component_map.getValue(@typeName(T)) orelse return error.ComponentDoesNotExist;
-                _ = try self.component_storages.getIndexPtr(ComponentStorage(T), index).add(entity, component);
+                _ = try self.component_storages.getIndexPtr(ComponentStorage(T), index).add(entity.id, component);
             }
 
             /// Adds multiple components to an entity
@@ -224,20 +225,25 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     const FieldT = field.field_type;
                     var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
 
-                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).add(entity, @field(components, field.name));
+                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).add(entity.id, @field(components, field.name));
                 }
             }
 
             /// Removes one component from an entity
             pub fn removeComponentFromEntity(self: *Self, entity: *Entity, comptime T: type) !void {
                 var index = self.component_map.getValue(@typeName(T)) orelse return error.ComponentDoesNotExist;
-                _ = try self.component_storages.getIndexPtr(ComponentStorage(T), index).remove(entity);
+                _ = try self.component_storages.getIndexPtr(ComponentStorage(T), index).remove(entity.id);
             }
 
             //----- Components
             /// Queries the world for entities that match the query
             /// Returns the entities in a AOS fashion
-            pub fn queryAOS(self: *Self, comptime Query: type) ![]Query {
+            /// Example Query:
+            /// struct {
+            ///     health: *HealthComponent,
+            ///     position: *PositionComponent,
+            /// }
+            pub fn queryAOS(self: *Self, comptime Query: type) !std.ArrayList(Query) {
                 var queries = std.ArrayList(Query).init(self.allocator);
                 outer: for (self.entities) |_, i| {
                     if (self.entities[i] != null) {
@@ -248,26 +254,26 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                         inline for (@typeInfo(Query).Struct.fields) |field| {
                             const FieldT = @typeInfo(field.field_type).Pointer.child;
                             var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
+                            var storage = self.component_storages.getIndexPtr(ComponentStorage(FieldT), index);
 
-                            if (!self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).has(entity)) continue :outer;
-                            @field(query, field.name) = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).getByEntity(entity);
+                            if (!storage.has(entity.id)) continue :outer;
+                            var comp = try storage.getByEntity(entity.id);
+                            @field(query, field.name) = comp;
                         }
                         try queries.append(query);
                     }
                 }
-                return queries.toOwnedSlice();
+                return queries;
             }
 
             /// Queries the world for entities that match the query
             /// Returns the entities in a SOA fashion
-            pub fn querySOA(self: *Self, comptime Query: type) Query {
-                inline for (@typeInfo(Query).Struct.fields) |field| {
-                    const FieldT = @typeInfo(field.field_type);
-                    var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
-
-                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).add(entity, @field(components, field.name));
-                }
-            }
+            /// Example Query:
+            /// struct {
+            ///     healths: []*HealthComponent,
+            ///     positions: []*PositionComponent,
+            /// }
+            pub fn querySOA(self: *Self, comptime Query: type) Query {}
 
             //----- Systems
 
@@ -277,10 +283,10 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             }
 
             /// Start up the scheduler
-            pub fn run(self: *Self) void {
+            pub fn run(self: *Self) !void {
                 var iter = self.systems.iterator();
                 while (iter.next()) |system| {
-                    system.key.run();
+                    try system.key.run(self);
                 }
             }
 
@@ -323,41 +329,41 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     return self.dense_len;
                 }
 
-                pub fn add(self: *Self, entity: Entity, component: CompType) !IdType {
+                pub fn add(self: *Self, entity: IdType, component: CompType) !IdType {
                     if (self.has(entity)) {
                         return error.AlreadyRegistered;
                     }
 
-                    try self.dense.append(entity.id);
+                    try self.dense.append(entity);
                     try self.components.append(component);
 
-                    try self.sparse.resize(entity.id + 1);
-                    self.sparse.items[entity.id] = self.dense_len;
+                    try self.sparse.resize(entity + 1);
+                    self.sparse.items[entity] = self.dense_len;
 
                     self.dense_len += 1;
                     return self.dense_len - 1;
                 }
 
-                pub fn addSlice(self: *Self, entity: Entity, components: []CompType) !void {
+                pub fn addSlice(self: *Self, entity: IdType, components: []CompType) !void {
                     if (self.has(entity)) {
                         return error.AlreadyRegistered;
                     }
 
-                    try self.sparse.resize(entity.id + components.len + 1);
+                    try self.sparse.resize(entity + components.len + 1);
                     try self.dense.resize(self.dense_len + components.len);
 
                     try self.components.appendSlice(components);
 
                     var i: IdType = 0;
                     while (i < components.len) : (i += 1) {
-                        self.dense.items[self.dense_len + i] = entity.id + i;
-                        self.sparse.items[entity.id + i] = self.dense_len + i;
+                        self.dense.items[self.dense_len + i] = entity + i;
+                        self.sparse.items[entity + i] = self.dense_len + i;
                     }
 
                     self.dense_len += @intCast(IdType, components.len);
                 }
 
-                pub fn remove(self: *Self, entity: Entity) !CompType {
+                pub fn remove(self: *Self, entity: IdType) !CompType {
                     if (!self.has(entity)) {
                         return error.NotRegistered;
                     }
@@ -365,27 +371,27 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     self.dense_len -= 1;
 
                     const last_sparse = self.dense.items[self.dense_len];
-                    const dense = self.sparse.items[entity.id];
+                    const dense = self.sparse.items[entity];
 
                     _ = self.dense.swapRemove(dense);
                     self.sparse.items[last_sparse] = dense;
                     return self.components.swapRemove(dense);
                 }
 
-                pub fn has(self: *Self, entity: Entity) bool {
-                    if (entity.id >= self.sparse.items.len) {
+                pub fn has(self: *Self, entity: IdType) bool {
+                    if (entity >= self.sparse.items.len) {
                         return false;
                     }
-                    const dense = self.sparse.items[entity.id];
-                    return dense < self.dense_len and self.dense.items[dense] == entity.id;
+                    const dense = self.sparse.items[entity];
+                    return dense < self.dense_len and self.dense.items[dense] == entity;
                 }
 
-                pub fn getByEntity(self: *Self, entity: Entity) !*CompType {
+                pub fn getByEntity(self: *Self, entity: IdType) !*CompType {
                     if (!self.has(entity)) {
                         return error.NotRegistered;
                     }
 
-                    const dense = self.sparse.items[entity.id];
+                    const dense = self.sparse.items[entity];
                     return &self.components.items[dense];
                 }
 
@@ -414,10 +420,10 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
         }
 
         pub const System = struct {
-            runFn: fn (self: *System) void,
+            runFn: fn (self: *System, world: *World) anyerror!void,
 
-            pub fn run(self: *System) void {
-                self.runFn(self);
+            pub fn run(self: *System, world: *World) !void {
+                try self.runFn(self, world);
             }
         };
     };
