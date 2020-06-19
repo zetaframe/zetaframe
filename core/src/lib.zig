@@ -351,13 +351,14 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
                     try self.sparse.resize(entity + components.len + 1);
                     try self.dense.resize(self.dense_len + components.len);
-
-                    try self.components.appendSlice(components);
+                    try self.components.resize(self.dense_len + components.len);
 
                     var i: IdType = 0;
                     while (i < components.len) : (i += 1) {
-                        self.dense.items[self.dense_len + i] = entity + i;
-                        self.sparse.items[entity + i] = self.dense_len + i;
+                        var dense = self.dense_len + i;
+                        self.dense.items[dense] = entity + i;
+                        self.sparse.items[entity + i] = dense;
+                        self.components.items[dense] = components[i];
                     }
 
                     self.dense_len += @intCast(IdType, components.len);
