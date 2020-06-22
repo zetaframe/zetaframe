@@ -21,6 +21,16 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
     }
 
     return struct {
+        fn componentId(comptime T: type) IdType {
+            comptime {
+                for (CompTypes) |Type, i| {
+                    if (T == Type) {
+                        return i;
+                    }
+                }
+            }
+        }
+
         pub const Entity = struct {
             id: IdType,
             internal: IdType,
@@ -39,7 +49,6 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             //----- Components
             component_storages: MultiVecStore,
             component_storage_ptrs: std.ArrayList(usize),
-            component_map: std.StringHashMap(IdType),
 
             //----- Systems
             systems: std.AutoHashMap(*System, void),
@@ -56,15 +65,13 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 var component_storages = MultiVecStore.init(allocator);
                 var component_storage_ptrs = std.ArrayList(usize).init(allocator);
 
-                var component_map = std.StringHashMap(IdType).init(allocator);
-
                 inline for (CompTypes) |T, i| {
                     var storage = try ComponentStorage(T).init(allocator, @intCast(IdType, i));
                     try component_storages.append(ComponentStorage(T), storage);
-                    try component_map.putNoClobber(@typeName(T), i);
                 }
 
                 inline for (CompTypes) |T, i| {
+                    var storage = allocator.create(ComponentStorage(T));
                     try component_storage_ptrs.append(@ptrToInt(component_storages.getIndexPtr(ComponentStorage(T), i)));
                 }
 
@@ -77,7 +84,6 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
                     .component_storages = component_storages,
                     .component_storage_ptrs = component_storage_ptrs,
-                    .component_map = component_map,
 
                     .systems = systems,
                 };
@@ -95,7 +101,6 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
                 self.component_storages.deinit();
                 self.component_storage_ptrs.deinit();
-                self.component_map.deinit();
 
                 self.systems.deinit();
             }
@@ -147,9 +152,8 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
                 inline for (@typeInfo(T).Struct.fields) |field| {
                     const FieldT = field.field_type;
-                    var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
 
-                    _ = try @intToPtr(*ComponentStorage(FieldT), self.component_storage_ptrs.items[index]).add(entity.id, @field(components, field.name));
+                    _ = try @intToPtr(*ComponentStorage(FieldT), self.component_storage_ptrs.items[componentId(FieldT)]).add(entity.id, @field(components, field.name));
                 }
 
                 return entity;
@@ -175,9 +179,8 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
                 inline for (@typeInfo(T).Struct.fields) |field| {
                     const FieldT = @typeInfo(field.field_type).Pointer.child;
-                    var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
 
-                    _ = try @intToPtr(*ComponentStorage(FieldT), self.component_storage_ptrs.items[index]).addSlice(self.current_entityid, @field(components, field.name));
+                    _ = try @intToPtr(*ComponentStorage(FieldT), self.component_storage_ptrs.items[componentId(FieldT)]).addSlice(self.current_entityid, @field(components, field.name));
                 }
 
                 self.current_entityid += @intCast(IdType, @field(components, @typeInfo(T).Struct.fields[0].name).len);
@@ -262,8 +265,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                         var query: Query = undefined;
                         inline for (@typeInfo(Query).Struct.fields) |field| {
                             const FieldT = @typeInfo(field.field_type).Pointer.child;
-                            var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
-                            var storage = self.component_storages.getIndexPtr(ComponentStorage(FieldT), index);
+                            var storage = @intToPtr(*ComponentStorage(FieldT), self.component_storage_ptrs.items[componentId(FieldT)]);
 
                             if (!storage.has(entity.id)) continue :outer;
                             var comp = try storage.getByEntity(entity.id);
