@@ -3,6 +3,8 @@ const Builder = std.build.Builder;
 
 const zf = @import("pkg.zig").Pkg(".");
 
+const Example = struct{ name: []const u8, path: []const u8, libs: u3 };
+
 pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
@@ -33,21 +35,21 @@ pub fn build(b: *Builder) void {
     test_no_render_step.dependOn(&core_test.step);
     test_no_render_step.dependOn(&math_test.step);
 
-    const examples = [_][2][]const u8{
-        [_][]const u8{ "simple", "examples/simple.zig" },
+    const examples = [_]Example{
+        .{ .name = "simple", .path = "examples/simple.zig", .libs = 0b110 },
     };
 
     for (examples) |ex| {
-        var exe = b.addExecutable(ex[0], ex[1]);
+        var exe = b.addExecutable(ex.name, ex.path);
         exe.setBuildMode(mode);
         exe.setTarget(target);
 
-        zf.addZetaModule(exe, .Core);
-        zf.addZetaModule(exe, .Math);
-        zf.addZetaModule(exe, .Render);
+        if (ex.libs & 0b100 == 0b100) zf.addZetaModule(exe, .Core);
+        if (ex.libs & 0b010 == 0b010) zf.addZetaModule(exe, .Math);
+        if (ex.libs & 0b001 == 0b001) zf.addZetaModule(exe, .Render) else exe.linkLibC();
 
         const run = exe.run();
-        const step = b.step(ex[0], b.fmt("run example {}", .{ex[0]}));
+        const step = b.step(ex.name, b.fmt("run example {}", .{ex.name}));
         step.dependOn(&run.step);
 
         exe.install();
