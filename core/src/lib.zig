@@ -61,8 +61,11 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 inline for (CompTypes) |T, i| {
                     var storage = try ComponentStorage(T).init(allocator, @intCast(IdType, i));
                     try component_storages.append(ComponentStorage(T), storage);
-                    try component_storage_ptrs.append(@ptrToInt(component_storages.getIndexPtr(ComponentStorage(T), i)));
                     try component_map.putNoClobber(@typeName(T), i);
+                }
+
+                inline for (CompTypes) |T, i| {
+                    try component_storage_ptrs.append(@ptrToInt(component_storages.getIndexPtr(ComponentStorage(T), i)));
                 }
 
                 var systems = std.AutoHashMap(*System, void).init(allocator);
@@ -146,7 +149,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     const FieldT = field.field_type;
                     var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
 
-                    _ = try @intToPtr(*ComponentStorage(FieldT), self.component_storage_ptrs.items[index]).add(self.current_entityid, @field(components, field.name));
+                    _ = try @intToPtr(*ComponentStorage(FieldT), self.component_storage_ptrs.items[index]).add(entity.id, @field(components, field.name));
                 }
 
                 return entity;
