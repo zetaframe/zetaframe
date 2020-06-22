@@ -71,7 +71,6 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 }
 
                 inline for (CompTypes) |T, i| {
-                    var storage = allocator.create(ComponentStorage(T));
                     try component_storage_ptrs.append(@ptrToInt(component_storages.getIndexPtr(ComponentStorage(T), i)));
                 }
 
