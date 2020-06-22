@@ -38,6 +38,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
             //----- Components
             component_storages: MultiVecStore,
+            component_storage_ptrs: std.ArrayList(usize),
             component_map: std.StringHashMap(IdType),
 
             //----- Systems
@@ -53,12 +54,14 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 errdefer allocator.free(entities);
 
                 var component_storages = MultiVecStore.init(allocator);
+                var component_storage_ptrs = std.ArrayList(usize).init(allocator);
 
                 var component_map = std.StringHashMap(IdType).init(allocator);
 
                 inline for (CompTypes) |T, i| {
                     var storage = try ComponentStorage(T).init(allocator, @intCast(IdType, i));
                     try component_storages.append(ComponentStorage(T), storage);
+                    try component_storage_ptrs.append(@ptrToInt(component_storages.getIndexPtr(ComponentStorage(T), i)));
                     try component_map.putNoClobber(@typeName(T), i);
                 }
 
@@ -70,6 +73,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     .entities = entities,
 
                     .component_storages = component_storages,
+                    .component_storage_ptrs = component_storage_ptrs,
                     .component_map = component_map,
 
                     .systems = systems,
@@ -81,11 +85,13 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             pub fn deinit(self: Self) void {
                 self.allocator.free(self.entities);
 
-                inline for (CompTypes) |T, i| {
-                    self.component_storages.getIndex(ComponentStorage(T), i).deinit();
+                var i: usize = 0;
+                while (i < self.component_storage_ptrs.items.len) : (i += 1) {
+                    @intToPtr(*ComponentStorage(u1), self.component_storage_ptrs.items[i]).deinit();
                 }
 
                 self.component_storages.deinit();
+                self.component_storage_ptrs.deinit();
                 self.component_map.deinit();
 
                 self.systems.deinit();
@@ -140,7 +146,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     const FieldT = field.field_type;
                     var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
 
-                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).add(entity.id, @field(components, field.name));
+                    _ = try @intToPtr(*ComponentStorage(FieldT), self.component_storage_ptrs.items[index]).add(self.current_entityid, @field(components, field.name));
                 }
 
                 return entity;
@@ -168,7 +174,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     const FieldT = @typeInfo(field.field_type).Pointer.child;
                     var index = self.component_map.getValue(@typeName(FieldT)) orelse return error.ComponentDoesNotExist;
 
-                    _ = try self.component_storages.getIndexPtr(ComponentStorage(FieldT), index).addSlice(self.current_entityid, @field(components, field.name));
+                    _ = try @intToPtr(*ComponentStorage(FieldT), self.component_storage_ptrs.items[index]).addSlice(self.current_entityid, @field(components, field.name));
                 }
 
                 self.current_entityid += @intCast(IdType, @field(components, @typeInfo(T).Struct.fields[0].name).len);
@@ -429,106 +435,6 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
         };
     };
 }
-
-/// A Vector Storage that stores one type in a generic non comptime manner
-/// Stores all entries as their raw bytes
-pub const AnyVecStore = struct {
-    const Self = @This();
-    allocator: *Allocator,
-
-    data: []u8,
-    data_len: usize,
-    len: usize,
-
-    type_name: []const u8,
-    type_size: usize,
-
-    /// Initialize the AnyVecStore
-    pub fn init(comptime T: type, allocator: *Allocator) Self {
-        return Self{
-            .allocator = allocator,
-
-            .data = &[_]u8{},
-            .data_len = 0,
-            .len = 0,
-
-            .type_name = @typeName(T),
-            .type_size = @bitSizeOf(T),
-        };
-    }
-
-    /// Initialize the AnyVecStore with a capacity
-    pub fn initCapacity(comptime T: type, capacity: usize, allocator: *Allocator) !Self {
-        return Self{
-            .allocator = allocator,
-
-            .data = try allocator.alloc(u8, @sizeOf(T) * capacity),
-            .data_len = @sizeOf(T) * capacity,
-            .len = capacity,
-
-            .type_name = @typeName(T),
-            .type_size = @bitSizeOf(T),
-        };
-    }
-
-    pub fn deinit(self: Self) void {
-        self.allocator.free(self.data);
-    }
-
-    fn checkType(self: *const Self, comptime T: type) bool {
-        const nameT = @typeName(T);
-        const sizeT = @bitSizeOf(T);
-
-        return mem.eql(u8, self.type_name, nameT) and self.type_size == sizeT;
-    }
-
-    pub fn append(self: *Self, comptime T: type, data: T) !void {
-        assert(self.checkType(T));
-
-        const sizeT = @sizeOf(T);
-
-        self.data = try self.allocator.realloc(self.data, self.data_len + sizeT);
-
-        const dataBytes = mem.toBytes(data);
-        for (dataBytes[0..dataBytes.len]) |b, i| self.data[self.data_len + i] = b;
-
-        self.data_len += sizeT;
-        self.len += 1;
-    }
-
-    pub fn getIndex(self: *const Self, comptime T: type, index: usize) T {
-        assert(self.checkType(T));
-        assert(index < self.len);
-
-        const sizeT = @sizeOf(T);
-        const offset = sizeT * index;
-
-        var dataBytes = self.data[offset .. offset + sizeT];
-        return mem.bytesToValue(T, @ptrCast(*[sizeT]u8, dataBytes));
-    }
-
-    pub fn getIndexPtr(self: *Self, comptime T: type, index: usize) *T {
-        assert(self.checkType(T));
-        assert(index < self.len);
-
-        const sizeT = @sizeOf(T);
-        const offset = sizeT * index;
-
-        var dataBytes = self.data[offset .. offset + sizeT];
-        return @ptrCast(*T, @alignCast(@alignOf(T), dataBytes));
-    }
-
-    pub fn setIndex(self: *Self, comptime T: type, index: usize, data: T) void {
-        assert(self.checkType(T));
-        assert(index < self.len);
-
-        const sizeT = @sizeOf(T);
-        const offset = sizeT * index;
-
-        const dataBytes = mem.toBytes(data);
-        for (dataBytes[0..dataBytes.len]) |b, i| self.data[offset + i] = b;
-    }
-};
 
 /// A Vector Storage that stores any type in a generic non comptime manner
 /// Stores all entries as their raw bytes

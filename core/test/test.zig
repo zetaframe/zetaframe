@@ -152,40 +152,6 @@ test "ecsBench" {
     }
 }
 
-test "anyVecStoreTest" {
-    std.debug.warn("\n", .{});
-
-    var store = AnyVecStore.init(u32, std.heap.page_allocator);
-    defer store.deinit();
-
-    try store.append(u32, 11111);
-    try store.append(u32, 22222);
-    try store.append(u32, 33333);
-    try store.append(u32, 44444);
-    try store.append(u32, 55555);
-
-    testing.expect(store.getIndex(u32, 0) == 11111);
-    testing.expect(store.getIndex(u32, 1) == 22222);
-    testing.expect(store.getIndex(u32, 2) == 33333);
-    testing.expect(store.getIndex(u32, 3) == 44444);
-    testing.expect(store.getIndex(u32, 4) == 55555);
-
-    store.setIndex(u32, 1, 77777);
-    testing.expect(store.getIndex(u32, 1) == 77777);
-
-    testing.expect(store.getIndexPtr(u32, 1).* == 77777);
-
-    var store2 = try AnyVecStore.initCapacity(u32, 5, std.heap.page_allocator);
-    testing.expect(store2.len == 5);
-    testing.expect(store2.data_len == @sizeOf(u32) * 5);
-
-    try store2.append(u32, 11111);
-    testing.expect(store2.getIndex(u32, 5) == 11111);
-
-    store2.setIndex(u32, 0, 77777);
-    testing.expect(store2.getIndex(u32, 0) == 77777);
-}
-
 test "multiVecStoreTest" {
     std.debug.warn("\n", .{});
 
