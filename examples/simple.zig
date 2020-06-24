@@ -20,6 +20,37 @@ const VelocityComponent = struct {
     vel: zm.Vec2f,
 };
 
+const PhysicsSystem = struct {
+    const Self = @This();
+    system: ECS.System,
+
+    pub fn init() Self {
+        return Self{
+            .system = ECS.System{
+                .runFn = run,
+            },
+        };
+    }
+
+    fn run(sys: *ECS.System, world: *ECS.World) !void {
+        var timer = try std.time.Timer.start();
+        var query = try world.queryAOS(struct {
+            pos: *PositionComponent,
+            vel: *VelocityComponent,
+        });
+        defer query.deinit();
+        var end = timer.lap();
+        std.debug.warn("query (create): \t{d}\n", .{@intToFloat(f64, end) / 1000000000});
+
+        timer.reset();
+        for (query.items) |q| {
+            q.pos.pos = q.pos.pos.add(q.vel.vel);
+        }
+        end = timer.lap();
+        std.debug.warn("query (iter):   \t{d}\n", .{@intToFloat(f64, end) / 1000000000});
+    }
+};
+
 pub fn main() !void {
     var world = try ECS.World.init(std.heap.c_allocator);
     defer world.deinit();
@@ -35,7 +66,7 @@ pub fn main() !void {
     }
 
     var end = timer.lap();
-    std.debug.warn("create (loop): \t{d}\n", .{@intToFloat(f64, end) / 1000000000});
+    std.debug.warn("create (loop):  \t{d}\n", .{@intToFloat(f64, end) / 1000000000});
 
     var velocities0 = try std.heap.page_allocator.alloc(VelocityComponent, 1000000);
     std.mem.set(VelocityComponent, velocities0, VelocityComponent{ .vel = zm.Vec2f.One });
@@ -54,4 +85,8 @@ pub fn main() !void {
 
     std.heap.page_allocator.free(velocities0);
     std.heap.page_allocator.free(positions0);
+
+    var physicsSystem = PhysicsSystem.init();
+    try world.registerSystem(&physicsSystem.system);
+    try world.run();
 }
