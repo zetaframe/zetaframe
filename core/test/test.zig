@@ -141,7 +141,7 @@ test "ecsBench" {
     warn("query_aos (iter): \t{d}\n", .{@intToFloat(f64, end) / 1000000000});
 
     // Check to make sure that the iteration actually did something
-    var query2 = try world.queryAOS(struct{
+    var query2 = try world.queryAOS(struct {
         pos: *PositionComponent,
         vel: *VelocityComponent,
     });

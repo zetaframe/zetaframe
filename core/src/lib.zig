@@ -176,6 +176,12 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                     };
                 }
 
+                // Checks to make sure that all component slices are the same length
+                var components_len = components[0].len;
+                inline for (@typeInfo(T).Struct.fields) |_, j| {
+                    if (@field(components, @typeInfo(T).Struct.fields[j].name).len != components_len) return error.InvalidComponents;
+                }
+
                 inline for (@typeInfo(T).Struct.fields) |field| {
                     const FieldT = @typeInfo(field.field_type).Pointer.child;
 
@@ -185,6 +191,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
                 self.current_entityid += @intCast(IdType, @field(components, @typeInfo(T).Struct.fields[0].name).len);
             }
 
+            /// Recycles an entity, said entity will no longer be valid
             pub fn deleteEntity(self: *Self, entity: Entity) !void {
                 if (self.next_recycleid == null) {
                     self.entities[entity.id] = null;
@@ -247,8 +254,13 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             }
 
             //----- Components
+            pub fn registerComponent(self: *Self, comptime Component: type) !void {
+                @panic("TODO");
+            }
+
             /// Queries the world for entities that match the query
             /// Returns the entities in a AOS fashion
+            /// The returned ArrayList must be user deinitialized
             /// Example Query:
             /// struct {
             ///     health: *HealthComponent,
@@ -278,12 +290,13 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
             /// Queries the world for entities that match the query
             /// Returns the entities in a SOA fashion
+            /// The returned Query must be user freed
             /// Example Query:
             /// struct {
             ///     healths: []*HealthComponent,
             ///     positions: []*PositionComponent,
             /// }
-            pub fn querySOA(self: *Self, comptime Query: type) Query {}
+            pub fn querySOA(self: *Self, comptime Query: type) *Query {}
 
             //----- Systems
 
