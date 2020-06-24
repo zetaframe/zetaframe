@@ -18,7 +18,7 @@ A glsl compatible linear algebra library. `wip`
 
 ### render
 
-An high-fidelity vulkan render api. `wip`.
+An easy vulkan render api. `wip`.
 
 Will later include a system that can be added directly into `core`.
 
