@@ -1,5 +1,4 @@
 const std = @import("std");
-
 const Allocator = std.mem.Allocator;
 
 const vk = @import("../include/vk.zig");
@@ -170,7 +169,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
         allocator: *Allocator,
         vallocator: *vma.VmaAllocator,
 
-        gpu: Gpu,
+        gpu: *Gpu,
 
         sbuffer: vk.Buffer,
         sallocation: vma.VmaAllocation,
@@ -208,7 +207,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
             };
         }
 
-        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: Gpu) anyerror!void {
+        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: *Gpu) anyerror!void {
             const self = @fieldParentPtr(Self, "buf", buf);
 
             self.allocator = allocator;

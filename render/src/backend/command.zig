@@ -1,5 +1,4 @@
 const std = @import("std");
-
 const Allocator = std.mem.Allocator;
 
 const windowing = @import("../windowing.zig");
@@ -18,7 +17,6 @@ const vma = @import("../include/vma.zig");
 
 const Gpu = @import("gpu.zig").Gpu;
 const Buffer = @import("buffer.zig").Buffer;
-const MaterialManager = @import("material.zig").MaterialManager;
 
 pub const Command = struct {
     const Self = @This();
@@ -26,7 +24,6 @@ pub const Command = struct {
     vallocator: *vma.VmaAllocator,
 
     gpu: *Gpu,
-    material_manager: *MaterialManager,
     extent: vk.Extent2D,
     framebuffers: []vk.Framebuffer,
 
@@ -41,7 +38,6 @@ pub const Command = struct {
             .vallocator = undefined,
 
             .gpu = undefined,
-            .material_manager = undefined,
             .extent = undefined,
             .framebuffers = undefined,
 
@@ -52,12 +48,11 @@ pub const Command = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: *Gpu, materialManager: *MaterialManager, extent: vk.Extent2D, framebuffers: []vk.Framebuffer) !void {
+    pub fn init(self: *Self, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: *Gpu, extent: vk.Extent2D, framebuffers: []vk.Framebuffer) !void {
         self.allocator = allocator;
         self.vallocator = vallocator;
 
         self.gpu = gpu;
-        self.material_manager = materialManager;
         self.extent = extent;
         self.framebuffers = framebuffers;
 

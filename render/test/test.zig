@@ -26,13 +26,14 @@ test "vulkan_backend" {
         }
     };
 
-    var simple_material = backend.Material.new(backend.Material.Description{
+    var simple_material = api.Material.new(.{
         .shaders = .{
             .vertex = try backend.Shader.init(std.heap.page_allocator, "render/test/shaders/vert.spv"),
             .fragment = try backend.Shader.init(std.heap.page_allocator, "render/test/shaders/frag.spv"),
         },
-        .inputs = &[_]backend.Material.Description.Input{
-            try backend.Pipeline.Settings.Input.init(Vertex, 0, std.heap.c_allocator),
+    }, .{
+        .inputs = &[_]backend.Pipeline.Settings.Input{
+            backend.Pipeline.Settings.Input.generateFromType(Vertex, 0),
         },
         .assembly = .{ .topology = .TRIANGLE_LIST },
         .rasterizer = .{},
@@ -45,9 +46,6 @@ test "vulkan_backend" {
     var vert = try backend.Shader.init(std.heap.page_allocator, "render/test/shaders/vert.spv");
     var frag = try backend.Shader.init(std.heap.page_allocator, "render/test/shaders/frag.spv");
 
-    var swapchain = backend.Swapchain.new();
-    var renderpass = backend.RenderPass.new();
-
     var vertex1 = Vertex.new(zm.Vec2f.new(-0.5, -0.5), zm.Vec3f.new(1.0, 0.0, 0.0));
     var vertex2 = Vertex.new(zm.Vec2f.new(0.5, -0.5), zm.Vec3f.new(0.0, 1.0, 0.0));
     var vertex3 = Vertex.new(zm.Vec2f.new(0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 1.0));
@@ -57,16 +55,15 @@ test "vulkan_backend" {
     var indices = [_]u16{ 0, 1, 2, 2, 3, 0 };
     var indexBuffer = backend.buffer.StagedBuffer(u16, .Index).new(&indices);
 
+    var swapchain = backend.Swapchain.new();
     var command = backend.Command.new(&vertexBuffer.buf, &indexBuffer.buf);
 
-    var rendercore = backend.RenderCore.new(swapchain, renderpass, command);
-
-    var backend = backend.backend.new(std.heap.c_allocator, "Vulkan Test", &testWindow, rendercore);
-    try backend.init();
-    defer backend.deinit();
+    var vbackend = backend.Backend.new(std.heap.c_allocator, "Vulkan Test", &testWindow, swapchain);
+    try vbackend.init();
+    defer vbackend.deinit();
 
     while (testWindow.isRunning()) {
         testWindow.update();
-        try backend.render();
+        try vbackend.submit(command);
     }
 }

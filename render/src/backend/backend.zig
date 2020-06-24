@@ -1,5 +1,4 @@
 const std = @import("std");
-
 const Allocator = std.mem.Allocator;
 
 const testing = std.testing;
@@ -18,14 +17,9 @@ pub const Shader = @import("shader.zig").Shader;
 pub const Gpu = @import("gpu.zig").Gpu;
 pub const RenderPass = @import("renderpass.zig").RenderPass;
 pub const Pipeline = @import("pipeline.zig").Pipeline;
-const swapchain = @import("swapchain.zig");
-pub const Swapchain = swapchain.Swapchain;
+pub const Swapchain = @import("swapchain.zig").Swapchain;
 pub const Command = @import("command.zig").Command;
-pub const RenderCore = @import("rendercore.zig").RenderCore;
 pub const buffer = @import("buffer.zig");
-const material = @import("material.zig");
-pub const Material = material.Material;
-pub const MaterialInstance = material.MaterialInstance;
 
 pub const VulkanError = error{
     InstanceCreationFailed,
@@ -94,7 +88,7 @@ pub const Backend = struct {
     name: [*c]const u8,
     window: *windowing.Window,
 
-    rendercore: RenderCore,
+    swapchain: Swapchain,
 
     instance: vk.Instance,
     gpu: Gpu,
@@ -109,7 +103,7 @@ pub const Backend = struct {
     current_frame: usize = 0,
 
     /// Create a new vulkan renderer backend with specified render core
-    pub fn new(allocator: *Allocator, name: [*c]const u8, window: *windowing.Window, rendercore: RenderCore) Self {
+    pub fn new(allocator: *Allocator, name: [*c]const u8, window: *windowing.Window, swapchain: Swapchain) Self {
         return Self{
             .allocator = allocator,
             .vallocator = undefined,
@@ -117,7 +111,7 @@ pub const Backend = struct {
             .name = name,
             .window = window,
 
-            .rendercore = rendercore,
+            .swapchain = swapchain,
 
             .instance = undefined,
             .gpu = undefined,
@@ -164,7 +158,7 @@ pub const Backend = struct {
             return VulkanError.CreateAllocatorFailed;
         }
 
-        try self.rendercore.init(self.allocator, &self.vallocator, false, self.gpu, self.window);
+        try self.swapchain.init(self.allocator, &self.gpu, self.window);
 
         try self.createSyncObjects();
     }
@@ -172,7 +166,7 @@ pub const Backend = struct {
     pub fn deinit(self: *Self) void {
         vk.DeviceWaitIdle(self.gpu.device) catch unreachable;
 
-        self.rendercore.deinit(false);
+        self.swapchain.deinit();
 
         var i: usize = 0;
         while (i < MAX_FRAMES_IN_FLIGHT) : (i += 1) {
@@ -192,16 +186,16 @@ pub const Backend = struct {
 
     fn recreateSwapchain(self: *Self) !void {
         try vk.DeviceWaitIdle(self.gpu.device);
-        self.rendercore.deinit(true);
+        self.swapchain.deinit();
 
-        try self.rendercore.init(self.allocator, &self.vallocator, true, self.gpu, self.window);
+        try self.swapchain.init(self.allocator, &self.gpu, self.window);
     }
 
-    pub fn render(self: *Self) !void {
+    pub fn submit(self: *Self, command: Command) !void {
         _ = try vk.WaitForFences(self.gpu.device, @ptrCast(*[1]vk.Fence, &self.in_flight_fences[self.current_frame]), vk.TRUE, std.math.maxInt(u64));
 
         var imageIndex: u32 = 0;
-        var result = vk.vkAcquireNextImageKHR(self.gpu.device, self.rendercore.swapchain.swapchain, std.math.maxInt(u64), self.image_available_semaphores[self.current_frame], null, &imageIndex);
+        var result = vk.vkAcquireNextImageKHR(self.gpu.device, self.swapchain.swapchain, std.math.maxInt(u64), self.image_available_semaphores[self.current_frame], null, &imageIndex);
         if (result == .ERROR_OUT_OF_DATE_KHR) {
             try self.recreateSwapchain();
         } else if (result != VK_SUCCESS and result != .SUBOPTIMAL_KHR) {
@@ -227,7 +221,7 @@ pub const Backend = struct {
             .pWaitDstStageMask = waitStageMask,
 
             .commandBufferCount = 1,
-            .pCommandBuffers = &[_]vk.CommandBuffer{self.rendercore.command.command_buffers[imageIndex]},
+            .pCommandBuffers = &[_]vk.CommandBuffer{command.command_buffers[imageIndex]},
 
             .signalSemaphoreCount = signalSemaphores.len,
             .pSignalSemaphores = &signalSemaphores,
@@ -239,7 +233,7 @@ pub const Backend = struct {
             return VulkanError.SubmitBufferFailed;
         }
 
-        const swapchains = [_]vk.SwapchainKHR{self.rendercore.swapchain.swapchain};
+        const swapchains = [_]vk.SwapchainKHR{self.swapchain.swapchain};
         const presentInfo = vk.PresentInfoKHR{
             .waitSemaphoreCount = signalSemaphores.len,
             .pWaitSemaphores = &signalSemaphores,
@@ -295,7 +289,7 @@ pub const Backend = struct {
             .flags = vk.FenceCreateFlags{ .signaled = true },
         };
 
-        self.in_flight_images = try self.allocator.alloc(?vk.Fence, self.rendercore.swapchain.images.len);
+        self.in_flight_images = try self.allocator.alloc(?vk.Fence, self.swapchain.images.len);
         for (self.in_flight_images) |fence, i| {
             self.in_flight_images[i] = null;
         }

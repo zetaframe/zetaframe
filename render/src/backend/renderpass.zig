@@ -34,7 +34,7 @@ pub const RenderPass = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, swapchainImageFormat: vk.Format) !void {
+    pub fn init(self: *Self, gpu: *Gpu, swapchainImageFormat: vk.Format) !void {
         self.gpu = gpu;
         self.swapchain_image_format = swapchainImageFormat;
 
