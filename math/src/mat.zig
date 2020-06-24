@@ -10,6 +10,7 @@ const Vec4 = vec.Vec4;
 
 fn MatMixin(comptime Self: type, comptime VecType: type, comptime T: type) type {
     return struct {
+        /// Clones the Matrix
         pub fn clone(self: *Self) Self {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field| {
@@ -18,21 +19,25 @@ fn MatMixin(comptime Self: type, comptime VecType: type, comptime T: type) type 
             return result;
         }
 
+        /// Gets the vector at specified index
         pub fn getIndex(self: *Self, comptime index: usize) VecType {
             assert(index < 4);
             return @field(self.*, @typeInfo(Self).Struct.fields[index].name);
         }
 
+        /// Gets the vector at specified index as a ptr
         pub fn getIndexPtr(self: *Self, comptime index: usize) *VecType {
             assert(index < 4);
             return &@field(self.*, @typeInfo(Self).Struct.fields[index].name);
         }
 
+        /// Sets the vector at specified index
         pub fn setIndex(self: *Self, comptime index: usize, value: VecType) void {
             assert(index < 4);
             @field(self.*, @typeInfo(Self).Struct.fields[index].name) = value;
         }
 
+        /// Transposes between Col Major and Row Major
         pub fn transpose(self: Self) Self {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field, i| {
@@ -43,6 +48,7 @@ fn MatMixin(comptime Self: type, comptime VecType: type, comptime T: type) type 
             return result;
         }
 
+        /// Add two matrices
         pub fn add(self: Self, other: Self) Self {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field| {
@@ -51,6 +57,7 @@ fn MatMixin(comptime Self: type, comptime VecType: type, comptime T: type) type 
             return result;
         }
 
+        /// Subtract two matrices
         pub fn sub(self: Self, other: Self) Self {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field| {
@@ -59,6 +66,7 @@ fn MatMixin(comptime Self: type, comptime VecType: type, comptime T: type) type 
             return result;
         }
 
+        /// Multiply two matrices
         pub fn mul(self: Self, other: Self) Self {
             var result = Self.Zero;
             var selfTransposed = self.transpose();
@@ -70,6 +78,7 @@ fn MatMixin(comptime Self: type, comptime VecType: type, comptime T: type) type 
             return result;
         }
 
+        /// Multiply a matrix by a scalar
         pub fn mulScalar(self: Self, other: T) Self {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field| {
@@ -78,6 +87,7 @@ fn MatMixin(comptime Self: type, comptime VecType: type, comptime T: type) type 
             return result;
         }
 
+        /// Divide a matrix by a scalar
         pub fn divScalar(self: Self, other: T) Self {
             var result = Self.Zero;
             inline for (@typeInfo(Self).Struct.fields) |field| {
