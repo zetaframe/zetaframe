@@ -20,6 +20,8 @@ pub const Pipeline = @import("pipeline.zig").Pipeline;
 pub const Swapchain = @import("swapchain.zig").Swapchain;
 pub const Command = @import("command.zig").Command;
 pub const buffer = @import("buffer.zig");
+pub const Framebuffer = @import("framebuffer.zig").Framebuffer;
+pub const ImageView = vk.ImageView;
 
 pub const VulkanError = error{
     InstanceCreationFailed,

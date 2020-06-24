@@ -22,8 +22,8 @@ pub const Framebuffer = struct {
         const framebufferInfo = vk.FramebufferCreateInfo{
             .renderPass = renderPass.render_pass,
 
-            .attachmentCount = attachments.len,
-            .pAttachments = &attachments,
+            .attachmentCount = @intCast(u32, attachments.len),
+            .pAttachments = attachments.ptr,
 
             .width = @intCast(u32, swapchain.extent.width),
             .height = @intCast(u32, swapchain.extent.height),

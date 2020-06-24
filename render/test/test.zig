@@ -62,6 +62,20 @@ test "vulkan_backend" {
     try vbackend.init();
     defer vbackend.deinit();
 
+    try simple_material.init(std.heap.c_allocator, &vbackend.gpu, &vbackend.swapchain);
+    defer simple_material.deinit();
+
+    var framebuffers = [_]backend.Framebuffer{
+        try backend.Framebuffer.init(&vbackend.gpu, &[_]backend.ImageView{vbackend.swapchain.imageviews[0]}, &simple_material.render_pass, &vbackend.swapchain),
+        try backend.Framebuffer.init(&vbackend.gpu, &[_]backend.ImageView{vbackend.swapchain.imageviews[1]}, &simple_material.render_pass, &vbackend.swapchain),
+        try backend.Framebuffer.init(&vbackend.gpu, &[_]backend.ImageView{vbackend.swapchain.imageviews[2]}, &simple_material.render_pass, &vbackend.swapchain),
+        try backend.Framebuffer.init(&vbackend.gpu, &[_]backend.ImageView{vbackend.swapchain.imageviews[3]}, &simple_material.render_pass, &vbackend.swapchain),
+        try backend.Framebuffer.init(&vbackend.gpu, &[_]backend.ImageView{vbackend.swapchain.imageviews[4]}, &simple_material.render_pass, &vbackend.swapchain),
+    };
+
+    try command.init(std.heap.c_allocator, &vbackend.vallocator, &vbackend.gpu, &simple_material.render_pass, &simple_material.pipeline, vbackend.swapchain.extent, &framebuffers);
+    defer command.deinit();
+
     while (testWindow.isRunning()) {
         testWindow.update();
         try vbackend.submit(command);

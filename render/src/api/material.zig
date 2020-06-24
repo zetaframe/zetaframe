@@ -14,7 +14,7 @@ const vma = @import("../include/vma.zig");
 
 const Gpu = @import("../backend/gpu.zig").Gpu;
 const Buffer = @import("../backend/buffer.zig").Buffer;
-
+const Swapchain = @import("../backend/swapchain.zig").Swapchain;
 const RenderPass = @import("../backend/renderpass.zig").RenderPass;
 const Pipeline = @import("../backend/pipeline.zig").Pipeline;
 
@@ -53,22 +53,18 @@ pub const Material = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, rendercore: *RenderCore) !void {
+    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, swapchain: *Swapchain) !void {
         self.allocator = allocator;
 
         self.gpu = gpu;
 
-        try self.render_pass.init(gpu, rendercore.swapchain.image_format);
-        try self.pipeline.init(allocator, gpu, extent, rendercore.swapchain.image_format, self.render_pass.render_pass, size);
+        try self.render_pass.init(gpu, swapchain.image_format);
+        try self.pipeline.init(allocator, gpu, swapchain.extent, swapchain.image_format, self.render_pass.render_pass, swapchain.window.size);
     }
 
     pub fn deinit(self: Self) void {
         self.pipeline.deinit();
         self.render_pass.deinit();
-    }
-
-    pub fn bindPipeline(self: *Self, command_buffer: vk.CommandBuffer) void {
-        vk.CmdBindPipeline(command_buffer, .GRAPHICS, self.pipeline.pipeline);
     }
 };
 
