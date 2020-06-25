@@ -33,7 +33,7 @@ pub const Swapchain = struct {
     image_format: vk.Format,
     extent: vk.Extent2D,
 
-    framebuffers: []vk.Framebuffer,
+    current_image_id: u32,
 
     pub fn new() Self {
         return Self{
@@ -49,7 +49,7 @@ pub const Swapchain = struct {
             .image_format = undefined,
             .extent = undefined,
 
-            .framebuffers = undefined,
+            .current_image_id = 0,
         };
     }
 
@@ -72,6 +72,42 @@ pub const Swapchain = struct {
         self.allocator.free(self.images);
 
         vk.DestroySwapchainKHR(self.gpu.device, self.swapchain, null);
+    }
+
+    pub fn acquireNextImage(self: *Self, semaphore: vk.Semaphore, imageIndex: *u32) !bool {
+        // self.current_image_id = imageIndex.*;
+
+        var result = vk.vkAcquireNextImageKHR(self.gpu.device, self.swapchain, std.math.maxInt(u64), semaphore, null, imageIndex);
+        if (result == .ERROR_OUT_OF_DATE_KHR) {
+            return true;
+        } else if (result != VK_SUCCESS and result != .SUBOPTIMAL_KHR) {
+            return VulkanError.AcquireImageFailed;
+        } else {
+            return false;
+        }
+    }
+
+    pub fn present(self: *Self, semaphore: vk.Semaphore, imageIndex: u32) !bool {
+        const signalSemaphores = [_]vk.Semaphore{semaphore};
+        const swapchains = [_]vk.SwapchainKHR{self.swapchain};
+        const presentInfo = vk.PresentInfoKHR{
+            .waitSemaphoreCount = signalSemaphores.len,
+            .pWaitSemaphores = &signalSemaphores,
+
+            .swapchainCount = swapchains.len,
+            .pSwapchains = &swapchains,
+
+            .pImageIndices = &[_]u32{imageIndex},
+        };
+
+        var result = vk.vkQueuePresentKHR(self.gpu.present_queue, &presentInfo);
+        if (result == .ERROR_OUT_OF_DATE_KHR) {
+            return true;
+        } else if (result != VK_SUCCESS and result != .SUBOPTIMAL_KHR) {
+            return VulkanError.PresentFailed;
+        } else {
+            return false;
+        }
     }
 
     fn createSwapchain(self: *Self) !void {

@@ -145,6 +145,15 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
             vma.vmaDestroyBuffer(self.vallocator.*, self.buffer, self.allocation);
         }
 
+        pub fn update(self: *Self, data: []T) !void {
+            var mappedData: []T = undefined;
+            if(vma.vmaMapMemory(self.vallocator.*, self.allocation, @ptrCast([*c]?*c_void, &mappedData)) != VK_SUCCESS) {
+                return VulkanError.MapMemoryFailed;
+            }
+            std.mem.copy(T, mappedData, data);
+            vma.vmaUnmapMemory(self.vallocator.*, self.allocation);
+        }
+
         pub fn buffer(buf: *Buffer) vk.Buffer {
             const self = @fieldParentPtr(Self, "buf", buf);
 

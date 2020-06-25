@@ -186,23 +186,32 @@ pub const Backend = struct {
         vk.DestroyInstance(self.instance, null);
     }
 
-    fn recreateSwapchain(self: *Self) !void {
+    fn recreateSwapchain(self: *Self, command: *Command) !void {
         try vk.DeviceWaitIdle(self.gpu.device);
         self.swapchain.deinit();
 
         try self.swapchain.init(self.allocator, &self.gpu, self.window);
+
+        command.render_pass.deinit();
+        try command.render_pass.init(&self.gpu, self.swapchain.image_format);
+
+        command.pipeline.deinit();
+        try command.pipeline.init(self.allocator, &self.gpu, self.swapchain.extent, self.swapchain.image_format, command.render_pass.render_pass, self.window.size);
+
+        for (command.framebuffers) |*fb, i| {
+            fb.deinit();
+            fb.* = try Framebuffer.init(&self.gpu, &[_]ImageView{self.swapchain.imageviews[i]}, command.render_pass, &self.swapchain);
+        }
+
+        command.deinit();
+        try command.init(self.allocator, &self.vallocator, &self.gpu, command.render_pass, command.pipeline, self.swapchain.extent, command.framebuffers);
     }
 
-    pub fn submit(self: *Self, command: Command) !void {
+    pub fn submit(self: *Self, command: *Command) !void {
         _ = try vk.WaitForFences(self.gpu.device, @ptrCast(*[1]vk.Fence, &self.in_flight_fences[self.current_frame]), vk.TRUE, std.math.maxInt(u64));
 
         var imageIndex: u32 = 0;
-        var result = vk.vkAcquireNextImageKHR(self.gpu.device, self.swapchain.swapchain, std.math.maxInt(u64), self.image_available_semaphores[self.current_frame], null, &imageIndex);
-        if (result == .ERROR_OUT_OF_DATE_KHR) {
-            try self.recreateSwapchain();
-        } else if (result != VK_SUCCESS and result != .SUBOPTIMAL_KHR) {
-            return VulkanError.AcquireImageFailed;
-        }
+        if (try self.swapchain.acquireNextImage(self.image_available_semaphores[self.current_frame], &imageIndex)) try self.recreateSwapchain(command);
 
         if (self.in_flight_images[imageIndex] != null) {
             std.debug.warn("\n{}\n", .{self.in_flight_images[imageIndex].?});
@@ -235,23 +244,7 @@ pub const Backend = struct {
             return VulkanError.SubmitBufferFailed;
         }
 
-        const swapchains = [_]vk.SwapchainKHR{self.swapchain.swapchain};
-        const presentInfo = vk.PresentInfoKHR{
-            .waitSemaphoreCount = signalSemaphores.len,
-            .pWaitSemaphores = &signalSemaphores,
-
-            .swapchainCount = swapchains.len,
-            .pSwapchains = &swapchains,
-
-            .pImageIndices = &[_]u32{imageIndex},
-        };
-
-        result = vk.vkQueuePresentKHR(self.gpu.present_queue, &presentInfo);
-        if (result == .ERROR_OUT_OF_DATE_KHR) {
-            try self.recreateSwapchain();
-        } else if (result != VK_SUCCESS and result != .SUBOPTIMAL_KHR) {
-            return VulkanError.PresentFailed;
-        }
+        if (try self.swapchain.present(self.render_finished_semaphores[self.current_frame], imageIndex)) try self.recreateSwapchain(command);
 
         self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
     }

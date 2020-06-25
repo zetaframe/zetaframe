@@ -41,9 +41,7 @@ pub const Framebuffer = struct {
     }
     
     pub fn deinit(self: Self) void {
-        vk.DestroyFramebuffer(self.gpu.device, framebuffer, null);
-
-        self.allocator.free(self.framebuffers);
+        vk.DestroyFramebuffer(self.gpu.device, self.framebuffer, null);
     }
 };
 

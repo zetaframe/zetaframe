@@ -27,6 +27,10 @@ pub const Command = struct {
 
     gpu: *Gpu,
 
+    render_pass: *RenderPass,
+    pipeline: *Pipeline,
+    framebuffers: []Framebuffer,
+
     vertex_buffer: *Buffer,
     index_buffer: *Buffer,
 
@@ -37,6 +41,10 @@ pub const Command = struct {
             .allocator = undefined,
 
             .gpu = undefined,
+
+            .render_pass = undefined,
+            .pipeline = undefined,
+            .framebuffers = undefined,
 
             .vertex_buffer = vertexBuffer,
             .index_buffer = indexBuffer,
@@ -50,6 +58,10 @@ pub const Command = struct {
 
         self.gpu = gpu;
 
+        self.render_pass = renderPass;
+        self.pipeline = pipeline;
+        self.framebuffers = framebuffers;
+
         try self.vertex_buffer.init(self.allocator, vallocator, self.gpu);
         try self.index_buffer.init(self.allocator, vallocator, self.gpu);
 
@@ -57,6 +69,8 @@ pub const Command = struct {
     }
 
     pub fn deinit(self: Self) void {
+        vk.DeviceWaitIdle(self.gpu.device) catch unreachable;
+        
         vk.FreeCommandBuffers(self.gpu.device, self.gpu.graphics_pool, self.command_buffers);
         self.allocator.free(self.command_buffers);
 
