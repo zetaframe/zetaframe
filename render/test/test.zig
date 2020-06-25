@@ -50,7 +50,7 @@ test "vulkan_backend" {
     var vertex2 = Vertex.new(zm.Vec2f.new(0.5, -0.5), zm.Vec3f.new(0.0, 1.0, 0.0));
     var vertex3 = Vertex.new(zm.Vec2f.new(0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 1.0));
     var vertex4 = Vertex.new(zm.Vec2f.new(-0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 0.0));
-    var vertexBuffer = backend.buffer.DirectBuffer(Vertex, .Vertex).new(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
+    var vertexBuffer = backend.buffer.StagedBuffer(Vertex, .Vertex).new(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
 
     var indices = [_]u16{ 0, 1, 2, 2, 3, 0 };
     var indexBuffer = backend.buffer.StagedBuffer(u16, .Index).new(&indices);
@@ -65,20 +65,19 @@ test "vulkan_backend" {
     try simple_material.init(std.heap.c_allocator, &vbackend.gpu, &vbackend.swapchain);
     defer simple_material.deinit();
 
-    var framebuffers = [_]backend.Framebuffer{
-        try backend.Framebuffer.init(&vbackend.gpu, &[_]backend.ImageView{vbackend.swapchain.imageviews[0]}, &simple_material.render_pass, &vbackend.swapchain),
-        try backend.Framebuffer.init(&vbackend.gpu, &[_]backend.ImageView{vbackend.swapchain.imageviews[1]}, &simple_material.render_pass, &vbackend.swapchain),
-        try backend.Framebuffer.init(&vbackend.gpu, &[_]backend.ImageView{vbackend.swapchain.imageviews[2]}, &simple_material.render_pass, &vbackend.swapchain),
-        try backend.Framebuffer.init(&vbackend.gpu, &[_]backend.ImageView{vbackend.swapchain.imageviews[3]}, &simple_material.render_pass, &vbackend.swapchain),
-        try backend.Framebuffer.init(&vbackend.gpu, &[_]backend.ImageView{vbackend.swapchain.imageviews[4]}, &simple_material.render_pass, &vbackend.swapchain),
-    };
+    var framebuffers = try std.heap.c_allocator.alloc(backend.Framebuffer, vbackend.swapchain.imageviews.len);
+    defer std.heap.c_allocator.free(framebuffers);
+    
+    for (framebuffers) |*fb, i| {
+        fb.* = try backend.Framebuffer.init(&vbackend.gpu, &[_]backend.ImageView{vbackend.swapchain.imageviews[i]}, &simple_material.render_pass, &vbackend.swapchain);
+    }
     defer {
         for (framebuffers) |framebuffer| {
             framebuffer.deinit();
         }
     }
 
-    try command.init(std.heap.c_allocator, &vbackend.vallocator, &vbackend.gpu, &simple_material.render_pass, &simple_material.pipeline, vbackend.swapchain.extent, &framebuffers);
+    try command.init(std.heap.c_allocator, &vbackend.vallocator, &vbackend.gpu, &simple_material.render_pass, &simple_material.pipeline, vbackend.swapchain.extent, framebuffers);
     defer command.deinit();
 
     while (testWindow.isRunning()) {

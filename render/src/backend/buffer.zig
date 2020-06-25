@@ -146,6 +146,8 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
         }
 
         pub fn update(self: *Self, data: []T) !void {
+            std.debug.assert(data.len == self.len);
+            
             var mappedData: []T = undefined;
             if(vma.vmaMapMemory(self.vallocator.*, self.allocation, @ptrCast([*c]?*c_void, &mappedData)) != VK_SUCCESS) {
                 return VulkanError.MapMemoryFailed;
@@ -297,6 +299,47 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
         pub fn deinit(buf: *Buffer) void {
             const self = @fieldParentPtr(Self, "buf", buf);
             vma.vmaDestroyBuffer(self.vallocator.*, self.dbuffer, self.dallocation);
+        }
+
+        pub fn update(self: *Self, data: []T) !void {
+            std.debug.assert(data.len == self.len);
+
+            const sBufferInfo = vk.BufferCreateInfo{
+                .size = self.size,
+
+                .usage = vk.BufferUsageFlags{.transferSrc = true},
+                .sharingMode = .EXCLUSIVE,
+            };
+
+            const sAllocInfo = vma.VmaAllocationCreateInfo{
+                .usage = vma.enum_VmaMemoryUsage.VMA_MEMORY_USAGE_CPU_TO_GPU,
+
+                .requiredFlags = vk.MemoryPropertyFlags{.hostVisible = true, .hostCoherent = true},
+                .preferredFlags = undefined,
+
+                .memoryTypeBits = 0,
+
+                .pool = null,
+
+                .pUserData = null,
+
+                .flags = 0,
+            };
+
+            if (vma.vmaCreateBuffer(self.vallocator.*, &sBufferInfo, &sAllocInfo, &self.sbuffer, &self.sallocation, null) != VK_SUCCESS) {
+                return VulkanError.CreateBufferFailed;
+            }
+
+            var mappedData: []T = undefined;
+            if(vma.vmaMapMemory(self.vallocator.*, self.sallocation, @ptrCast([*c]?*c_void, &mappedData)) != VK_SUCCESS) {
+                return VulkanError.MapMemoryFailed;
+            }
+            std.mem.copy(T, mappedData, data);
+            vma.vmaUnmapMemory(self.vallocator.*, self.sallocation);
+
+            try self.copyBuffer();
+            
+            vma.vmaDestroyBuffer(self.vallocator.*, self.sbuffer, self.sallocation);
         }
 
         pub fn copyBuffer(self: *Self) !void {
