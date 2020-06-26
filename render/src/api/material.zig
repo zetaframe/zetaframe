@@ -37,7 +37,6 @@ pub const Material = struct {
 
     gpu: *Gpu,
 
-    render_pass: RenderPass,
     pipeline: Pipeline,
 
     pub fn new(description: Description, pipelineSettings: Pipeline.Settings) Self {
@@ -48,23 +47,20 @@ pub const Material = struct {
 
             .gpu = undefined,
 
-            .render_pass = RenderPass.new(),
             .pipeline = Pipeline.new(pipelineSettings, description.shaders.vertex, description.shaders.fragment),
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, swapchain: *Swapchain) !void {
+    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, renderPass: *RenderPass, swapchain: *Swapchain) !void {
         self.allocator = allocator;
 
         self.gpu = gpu;
 
-        try self.render_pass.init(gpu, swapchain.image_format);
-        try self.pipeline.init(allocator, gpu, swapchain.extent, swapchain.image_format, self.render_pass.render_pass, swapchain.window.size);
+        try self.pipeline.init(allocator, gpu, renderPass, swapchain.window.size, swapchain.extent, swapchain.image_format);
     }
 
     pub fn deinit(self: Self) void {
         self.pipeline.deinit();
-        self.render_pass.deinit();
     }
 };
 

@@ -91,6 +91,7 @@ pub const Backend = struct {
     window: *windowing.Window,
 
     swapchain: Swapchain,
+    render_pass: RenderPass,
 
     instance: vk.Instance,
     gpu: Gpu,
@@ -105,7 +106,7 @@ pub const Backend = struct {
     current_frame: usize = 0,
 
     /// Create a new vulkan renderer backend with specified render core
-    pub fn new(allocator: *Allocator, name: [*c]const u8, window: *windowing.Window, swapchain: Swapchain) Self {
+    pub fn new(allocator: *Allocator, name: [*c]const u8, window: *windowing.Window, swapchain: Swapchain, renderPass: RenderPass) Self {
         return Self{
             .allocator = allocator,
             .vallocator = undefined,
@@ -114,6 +115,7 @@ pub const Backend = struct {
             .window = window,
 
             .swapchain = swapchain,
+            .render_pass = renderPass,
 
             .instance = undefined,
             .gpu = undefined,
@@ -161,6 +163,7 @@ pub const Backend = struct {
         }
 
         try self.swapchain.init(self.allocator, &self.gpu, self.window);
+        try self.render_pass.init(&self.gpu, self.swapchain.image_format);
 
         try self.createSyncObjects();
     }
@@ -168,6 +171,7 @@ pub const Backend = struct {
     pub fn deinit(self: *Self) void {
         vk.DeviceWaitIdle(self.gpu.device) catch unreachable;
 
+        self.render_pass.deinit();
         self.swapchain.deinit();
 
         var i: usize = 0;
@@ -192,19 +196,19 @@ pub const Backend = struct {
 
         try self.swapchain.init(self.allocator, &self.gpu, self.window);
 
-        command.render_pass.deinit();
-        try command.render_pass.init(&self.gpu, self.swapchain.image_format);
+        self.render_pass.deinit();
+        try self.render_pass.init(&self.gpu, self.swapchain.image_format);
 
         command.pipeline.deinit();
-        try command.pipeline.init(self.allocator, &self.gpu, self.swapchain.extent, self.swapchain.image_format, command.render_pass.render_pass, self.window.size);
+        try command.pipeline.init(self.allocator, &self.gpu, &self.render_pass, self.window.size, self.swapchain.extent, self.swapchain.image_format);
 
         for (command.framebuffers) |*fb, i| {
             fb.deinit();
-            fb.* = try Framebuffer.init(&self.gpu, &[_]ImageView{self.swapchain.imageviews[i]}, command.render_pass, &self.swapchain);
+            fb.* = try Framebuffer.init(&self.gpu, &[_]ImageView{self.swapchain.imageviews[i]}, &self.render_pass, &self.swapchain);
         }
 
         command.deinit();
-        try command.init(self.allocator, &self.vallocator, &self.gpu, command.render_pass, command.pipeline, self.swapchain.extent, command.framebuffers);
+        try command.init(self.allocator, &self.vallocator, &self.gpu, &self.render_pass, command.pipeline, self.swapchain.extent, command.framebuffers);
     }
 
     pub fn submit(self: *Self, command: *Command) !void {

@@ -12,6 +12,7 @@ const VK_SUCCESS = vk.enum_VkResult.VK_SUCCESS;
 
 const Gpu = @import("gpu.zig").Gpu;
 const Shader = @import("shader.zig").Shader;
+const RenderPass = @import("renderpass.zig").RenderPass;
 
 pub const Pipeline = struct {
     pub const Settings = struct {
@@ -80,10 +81,39 @@ pub const Pipeline = struct {
         };
 
         pub const Assembly = struct {
-            topology: vk.PrimitiveTopology,
+            pub const Topology = enum(i32){
+                PointList,
+                LineList,
+                LineStrip,
+                TriangleList,
+                TriangleStrip,
+                TriangleFan,
+                LineListWithAdjacency,
+                LineStripWithAdjacency,
+                TriangleListWithAdjacency,
+                TriangleStripWithAdjacency,
+                PatchList,
+            };
+
+            topology: Topology,
         };
 
-        pub const Rasterizer = struct {};
+        pub const Rasterizer = struct {
+            pub const CullMode = enum{
+                Front,
+                Back,
+                Both,
+                None,
+            };
+
+            pub const FrontFace = enum{
+                Clockwise,
+                CounterClockwise,
+            };
+
+            cull_mode: CullMode,
+            front_face: FrontFace,
+        };
 
         inputs: []Input,
         assembly: Assembly,
@@ -157,7 +187,7 @@ pub const Pipeline = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, extent: vk.Extent2D, swapchainImageFormat: vk.Format, renderPass: vk.RenderPass, size: windowing.Size) !void {
+    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, renderPass: *RenderPass, size: windowing.Size, extent: vk.Extent2D, swapchainImageFormat: vk.Format) !void {
         self.allocator = allocator;
 
         self.gpu = gpu;
@@ -195,7 +225,7 @@ pub const Pipeline = struct {
 
             .layout = self.pipeline_layout,
 
-            .renderPass = renderPass,
+            .renderPass = renderPass.render_pass,
             .subpass = 0,
 
             .basePipelineHandle = null,
@@ -279,7 +309,7 @@ pub const Pipeline = struct {
         };
 
         self.input_assembly_info = vk.PipelineInputAssemblyStateCreateInfo{
-            .topology = self.settings.assembly.topology,
+            .topology = @intToEnum(vk.PrimitiveTopology, @enumToInt(self.settings.assembly.topology)),
 
             .primitiveRestartEnable = vk.FALSE,
         };
@@ -301,8 +331,16 @@ pub const Pipeline = struct {
 
             .lineWidth = 1.0,
 
-            .cullMode = vk.CullModeFlags{ .back = true },
-            .frontFace = .CLOCKWISE,
+            .cullMode = switch (self.settings.rasterizer.cull_mode) {
+                .Front => vk.CullModeFlags{ .front = true },
+                .Back => vk.CullModeFlags{ .back = true },
+                .Both => vk.CullModeFlags.frontAndBack,
+                .None => vk.CullModeFlags.none,
+            },
+            .frontFace = switch (self.settings.rasterizer.front_face) {
+                .Clockwise => vk.FrontFace.CLOCKWISE,
+                .CounterClockwise => vk.FrontFace.COUNTER_CLOCKWISE,
+            },
 
             .depthBiasEnable = vk.FALSE,
             .depthBiasConstantFactor = 0,
