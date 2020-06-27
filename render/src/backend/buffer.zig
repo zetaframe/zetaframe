@@ -16,10 +16,10 @@ const VulkanError = vkbackend.VulkanError;
 const Gpu = @import("gpu.zig").Gpu;
 
 pub const Buffer = struct {
-    initFn: fn(self: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: *Gpu) anyerror!void,
-    deinitFn: fn(self: *Buffer) void,
-    bufferFn: fn(self: *Buffer) vk.Buffer,
-    lenFn: fn(self: *Buffer) u32,
+    initFn: fn (self: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: *Gpu) anyerror!void,
+    deinitFn: fn (self: *Buffer) void,
+    bufferFn: fn (self: *Buffer) vk.Buffer,
+    lenFn: fn (self: *Buffer) u32,
 
     pub fn init(self: *Buffer, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: *Gpu) !void {
         try self.initFn(self, allocator, vallocator, gpu);
@@ -38,7 +38,7 @@ pub const Buffer = struct {
     }
 };
 
-pub const Usage = enum{
+pub const Usage = enum {
     Vertex,
     Index,
 };
@@ -70,7 +70,7 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
         data: []T,
 
         pub fn new(data: []T) Self {
-            return Self {
+            return Self{
                 .buf = Buffer{
                     .initFn = init,
                     .deinitFn = deinit,
@@ -107,7 +107,7 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
                 .size = self.size,
 
                 .usage = bUsage,
-                
+
                 .sharingMode = if (differentFamilies) .CONCURRENT else .EXCLUSIVE,
                 .queueFamilyIndexCount = if (differentFamilies) 2 else 0,
                 .pQueueFamilyIndices = if (differentFamilies) &queueFamilyIndices else undefined,
@@ -116,8 +116,8 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
             const allocInfo = vma.VmaAllocationCreateInfo{
                 .usage = vma.enum_VmaMemoryUsage.VMA_MEMORY_USAGE_CPU_TO_GPU,
 
-                .requiredFlags = vk.MemoryPropertyFlags{.hostVisible = true, .hostCoherent = true},
-                .preferredFlags = vk.MemoryPropertyFlags{.hostCached = true},
+                .requiredFlags = vk.MemoryPropertyFlags{ .hostVisible = true, .hostCoherent = true },
+                .preferredFlags = vk.MemoryPropertyFlags{ .hostCached = true },
 
                 .memoryTypeBits = 0,
 
@@ -133,7 +133,7 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
             }
 
             var mappedData: []T = undefined;
-            if(vma.vmaMapMemory(self.vallocator.*, self.allocation, @ptrCast([*c]?*c_void, &mappedData)) != VK_SUCCESS) {
+            if (vma.vmaMapMemory(self.vallocator.*, self.allocation, @ptrCast([*c]?*c_void, &mappedData)) != VK_SUCCESS) {
                 return VulkanError.MapMemoryFailed;
             }
             std.mem.copy(T, mappedData, self.data);
@@ -147,9 +147,9 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
 
         pub fn update(self: *Self, data: []T) !void {
             std.debug.assert(data.len == self.len);
-            
+
             var mappedData: []T = undefined;
-            if(vma.vmaMapMemory(self.vallocator.*, self.allocation, @ptrCast([*c]?*c_void, &mappedData)) != VK_SUCCESS) {
+            if (vma.vmaMapMemory(self.vallocator.*, self.allocation, @ptrCast([*c]?*c_void, &mappedData)) != VK_SUCCESS) {
                 return VulkanError.MapMemoryFailed;
             }
             std.mem.copy(T, mappedData, data);
@@ -193,7 +193,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
         data: []T,
 
         pub fn new(data: []T) Self {
-            return Self {
+            return Self{
                 .buf = Buffer{
                     .initFn = init,
                     .deinitFn = deinit,
@@ -229,14 +229,14 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
             const sBufferInfo = vk.BufferCreateInfo{
                 .size = self.size,
 
-                .usage = vk.BufferUsageFlags{.transferSrc = true},
+                .usage = vk.BufferUsageFlags{ .transferSrc = true },
                 .sharingMode = .EXCLUSIVE,
             };
 
             const sAllocInfo = vma.VmaAllocationCreateInfo{
                 .usage = vma.enum_VmaMemoryUsage.VMA_MEMORY_USAGE_CPU_TO_GPU,
 
-                .requiredFlags = vk.MemoryPropertyFlags{.hostVisible = true, .hostCoherent = true},
+                .requiredFlags = vk.MemoryPropertyFlags{ .hostVisible = true, .hostCoherent = true },
                 .preferredFlags = undefined,
 
                 .memoryTypeBits = 0,
@@ -253,7 +253,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
             }
 
             var mappedData: []T = undefined;
-            if(vma.vmaMapMemory(self.vallocator.*, self.sallocation, @ptrCast([*c]?*c_void, &mappedData)) != VK_SUCCESS) {
+            if (vma.vmaMapMemory(self.vallocator.*, self.sallocation, @ptrCast([*c]?*c_void, &mappedData)) != VK_SUCCESS) {
                 return VulkanError.MapMemoryFailed;
             }
             std.mem.copy(T, mappedData, self.data);
@@ -265,8 +265,8 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
             const vBufferInfo = vk.BufferCreateInfo{
                 .size = self.size,
 
-                .usage = (vk.BufferUsageFlags{.transferDst = true}).with(bUsage),
-                
+                .usage = (vk.BufferUsageFlags{ .transferDst = true }).with(bUsage),
+
                 .sharingMode = if (differentFamilies) .CONCURRENT else .EXCLUSIVE,
                 .queueFamilyIndexCount = if (differentFamilies) 2 else 0,
                 .pQueueFamilyIndices = if (differentFamilies) &queueFamilyIndices else undefined,
@@ -275,7 +275,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
             const vAllocInfo = vma.VmaAllocationCreateInfo{
                 .usage = vma.enum_VmaMemoryUsage.VMA_MEMORY_USAGE_GPU_ONLY,
 
-                .requiredFlags = vk.MemoryPropertyFlags{.deviceLocal = true},
+                .requiredFlags = vk.MemoryPropertyFlags{ .deviceLocal = true },
                 .preferredFlags = undefined,
 
                 .memoryTypeBits = 0,
@@ -307,14 +307,14 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
             const sBufferInfo = vk.BufferCreateInfo{
                 .size = self.size,
 
-                .usage = vk.BufferUsageFlags{.transferSrc = true},
+                .usage = vk.BufferUsageFlags{ .transferSrc = true },
                 .sharingMode = .EXCLUSIVE,
             };
 
             const sAllocInfo = vma.VmaAllocationCreateInfo{
                 .usage = vma.enum_VmaMemoryUsage.VMA_MEMORY_USAGE_CPU_TO_GPU,
 
-                .requiredFlags = vk.MemoryPropertyFlags{.hostVisible = true, .hostCoherent = true},
+                .requiredFlags = vk.MemoryPropertyFlags{ .hostVisible = true, .hostCoherent = true },
                 .preferredFlags = undefined,
 
                 .memoryTypeBits = 0,
@@ -331,14 +331,14 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
             }
 
             var mappedData: []T = undefined;
-            if(vma.vmaMapMemory(self.vallocator.*, self.sallocation, @ptrCast([*c]?*c_void, &mappedData)) != VK_SUCCESS) {
+            if (vma.vmaMapMemory(self.vallocator.*, self.sallocation, @ptrCast([*c]?*c_void, &mappedData)) != VK_SUCCESS) {
                 return VulkanError.MapMemoryFailed;
             }
             std.mem.copy(T, mappedData, data);
             vma.vmaUnmapMemory(self.vallocator.*, self.sallocation);
 
             try self.copyBuffer();
-            
+
             vma.vmaDestroyBuffer(self.vallocator.*, self.sbuffer, self.sallocation);
         }
 
@@ -353,9 +353,9 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
 
             var commandBuffer: vk.CommandBuffer = undefined;
             try vk.AllocateCommandBuffers(self.gpu.device, allocInfo, @ptrCast(*[1]vk.CommandBuffer, &commandBuffer));
-            
+
             const beginInfo = vk.CommandBufferBeginInfo{
-                .flags = vk.CommandBufferUsageFlags{.oneTimeSubmit = true},
+                .flags = vk.CommandBufferUsageFlags{ .oneTimeSubmit = true },
             };
 
             try vk.BeginCommandBuffer(commandBuffer, beginInfo);
@@ -376,7 +376,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
                 .pCommandBuffers = &[_]vk.CommandBuffer{commandBuffer},
             }};
 
-            try vk.QueueSubmit(self.gpu.transfer_queue, &submitInfos, null);
+            try vk.QueueSubmit(self.gpu.transfer_queue, &submitInfos, .Null);
             try vk.QueueWaitIdle(self.gpu.transfer_queue);
 
             vk.FreeCommandBuffers(self.gpu.device, self.gpu.transfer_pool, &[_]vk.CommandBuffer{commandBuffer});

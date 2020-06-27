@@ -76,8 +76,7 @@ pub const Swapchain = struct {
 
     pub fn acquireNextImage(self: *Self, semaphore: vk.Semaphore, imageIndex: *u32) !bool {
         // self.current_image_id = imageIndex.*;
-
-        var result = vk.vkAcquireNextImageKHR(self.gpu.device, self.swapchain, std.math.maxInt(u64), semaphore, null, imageIndex);
+        var result = vk.vkAcquireNextImageKHR(self.gpu.device, self.swapchain, std.math.maxInt(u64), semaphore, .Null, imageIndex);
         if (result == .ERROR_OUT_OF_DATE_KHR) {
             return true;
         } else if (result != VK_SUCCESS and result != .SUBOPTIMAL_KHR) {
@@ -134,7 +133,7 @@ pub const Swapchain = struct {
             .imageColorSpace = surfaceFormat.colorSpace,
             .imageExtent = extent,
             .imageArrayLayers = 1,
-            .imageUsage = vk.ImageUsageFlags{.colorAttachment = true},
+            .imageUsage = vk.ImageUsageFlags{ .colorAttachment = true },
 
             .imageSharingMode = if (differentFamilies) .CONCURRENT else .EXCLUSIVE,
             .queueFamilyIndexCount = if (differentFamilies) 2 else 0,
@@ -174,7 +173,7 @@ pub const Swapchain = struct {
                 },
 
                 .subresourceRange = vk.ImageSubresourceRange{
-                    .aspectMask = vk.ImageAspectFlags{.color = true},
+                    .aspectMask = vk.ImageAspectFlags{ .color = true },
                     .baseMipLevel = 0,
                     .levelCount = 1,
                     .baseArrayLayer = 0,

@@ -81,7 +81,7 @@ pub const Pipeline = struct {
         };
 
         pub const Assembly = struct {
-            pub const Topology = enum(i32){
+            pub const Topology = enum(i32) {
                 PointList,
                 LineList,
                 LineStrip,
@@ -99,14 +99,14 @@ pub const Pipeline = struct {
         };
 
         pub const Rasterizer = struct {
-            pub const CullMode = enum{
+            pub const CullMode = enum {
                 Front,
                 Back,
                 Both,
                 None,
             };
 
-            pub const FrontFace = enum{
+            pub const FrontFace = enum {
                 Clockwise,
                 CounterClockwise,
             };
@@ -228,11 +228,11 @@ pub const Pipeline = struct {
             .renderPass = renderPass.render_pass,
             .subpass = 0,
 
-            .basePipelineHandle = null,
+            .basePipelineHandle = .Null,
             .basePipelineIndex = 0,
         }};
 
-        try vk.CreateGraphicsPipelines(self.gpu.device, null, &pipelineInfo, null, @ptrCast(*[1]vk.Pipeline, &self.pipeline));
+        try vk.CreateGraphicsPipelines(self.gpu.device, .Null, &pipelineInfo, null, @ptrCast(*[1]vk.Pipeline, &self.pipeline));
     }
 
     pub fn deinit(self: Self) void {
