@@ -83,6 +83,7 @@ pub fn main() !void {
     var timer = std.time.Timer.start() catch unreachable;
     var counter: f32 = 0;
     while (testWindow.isRunning()) {
+        counter += 0.01;
         timer.reset();
 
         testWindow.update();
