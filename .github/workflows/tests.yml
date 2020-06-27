@@ -15,4 +15,4 @@ jobs:
       with:
         version: master
     - run: zig build test-no-render -Drelease-fast
-    - run: zig build simple -Drelease-fast -Dvalgrind
+    - run: zig build simple -Drelease-fast
