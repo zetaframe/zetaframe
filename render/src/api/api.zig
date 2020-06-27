@@ -18,7 +18,7 @@ pub const Api = struct {
     backend: Backend,
 
     pub fn new(allocator: *Allocator, window: *windowing.Window) Self {
-        var backend = vbackend.Backend.new(allocator, "zetaframe", window, vbackend.Swapchain.new(), vbackend.RenderPass.new());
+        var backend = vbackend.Backend.new(allocator, window, vbackend.Swapchain.new(), vbackend.RenderPass.new());
         
         return Self{
             .allocator = allocator,

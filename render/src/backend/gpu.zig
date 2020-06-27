@@ -251,7 +251,7 @@ pub const Gpu = struct {
             .ppEnabledExtensionNames = &deviceExtensions,
 
             .enabledLayerCount = if (enableValidationLayers) @intCast(u32, validationLayers.len) else 0,
-            .ppEnabledLayerNames = if (enableValidationLayers) &validationLayers else null,
+            .ppEnabledLayerNames = if (enableValidationLayers) &validationLayers else undefined,
         };
 
         self.device = try vk.CreateDevice(self.physical_device, createInfo, null);

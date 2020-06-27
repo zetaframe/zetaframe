@@ -61,7 +61,7 @@ test "vulkan_backend" {
     var renderPass = backend.RenderPass.new();
     var command = backend.Command.new(&vertexBuffer.buf, &indexBuffer.buf);
 
-    var vbackend = backend.Backend.new(std.heap.c_allocator, "Vulkan Test", &testWindow, swapchain, renderPass);
+    var vbackend = backend.Backend.new(std.heap.c_allocator, &testWindow, swapchain, renderPass);
     try vbackend.init();
     defer vbackend.deinit();
 
@@ -83,9 +83,18 @@ test "vulkan_backend" {
     try command.init(std.heap.c_allocator, &vbackend.vallocator, &vbackend.gpu, &vbackend.render_pass, &simple_material.pipeline, vbackend.swapchain.extent, framebuffers);
     defer command.deinit();
 
+    var timer = std.time.Timer.start() catch unreachable;
     var counter: f32 = 0;
     while (testWindow.isRunning()) {
+        timer.reset();
+        
+        counter += 0.001;
+        if (counter > 4) {
+            break;
+        }
+
         testWindow.update();
+
         vertex1.color.x = @mod(vertex1.color.x + 0.001, 1.0);
         vertex2.color.y = @mod(vertex1.color.x - 0.001, 1.0);
         vertex3.color.z = @mod(vertex1.color.x + 0.001, 1.0);
@@ -94,9 +103,12 @@ test "vulkan_backend" {
         vertex1.pos.y = @cos(counter);
         vertex2.pos.x = @sin(-counter);
         vertex2.pos.y = @cos(counter);
+
         try vertexBuffer.update(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
+
         try vbackend.submit(&command);
-        counter += 0.001;
+        
+        std.debug.warn("fps: {d}\n", .{1 / (@intToFloat(f64, timer.lap()) / 1000000000)});
     }
 }
 
@@ -158,7 +170,12 @@ test "api" {
     try vapi.init();
     defer vapi.deinit();
 
+    var counter: f32 = 0;
     while (testWindow.isRunning()) {
         testWindow.update();
+        counter += 0.001;
+        if (counter > 1000) {
+            break;
+        }
     }
 }

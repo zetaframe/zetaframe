@@ -106,12 +106,12 @@ pub const Backend = struct {
     current_frame: usize = 0,
 
     /// Create a new vulkan renderer backend with specified render core
-    pub fn new(allocator: *Allocator, name: [*c]const u8, window: *windowing.Window, swapchain: Swapchain, renderPass: RenderPass) Self {
+    pub fn new(allocator: *Allocator, window: *windowing.Window, swapchain: Swapchain, renderPass: RenderPass) Self {
         return Self{
             .allocator = allocator,
             .vallocator = undefined,
 
-            .name = name,
+            .name = window.name,
             .window = window,
 
             .swapchain = swapchain,
@@ -275,7 +275,7 @@ pub const Backend = struct {
             .enabledExtensionCount = @intCast(u32, extensions.len),
             .ppEnabledExtensionNames = extensions.ptr,
             .enabledLayerCount = if (enableValidationLayers) @intCast(u32, validationLayers.len) else 0,
-            .ppEnabledLayerNames = if (enableValidationLayers) &validationLayers else null,
+            .ppEnabledLayerNames = if (enableValidationLayers) &validationLayers else undefined,
         };
 
         self.instance = try vk.CreateInstance(createInfo, null);
