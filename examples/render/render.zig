@@ -84,11 +84,6 @@ pub fn main() !void {
     var counter: f32 = 0;
     while (testWindow.isRunning()) {
         timer.reset();
-        
-        counter += 0.001;
-        if (counter > 4) {
-            break;
-        }
 
         testWindow.update();
 
@@ -104,7 +99,7 @@ pub fn main() !void {
         try vertexBuffer.update(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
 
         try vbackend.submit(&command);
-        
+
         std.debug.warn("fps: {d}\n", .{1 / (@intToFloat(f64, timer.lap()) / 1000000000)});
     }
 }
