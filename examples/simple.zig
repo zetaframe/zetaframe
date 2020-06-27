@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const zc = @import("zetacore");
 const zm = @import("zetamath");
@@ -68,9 +69,9 @@ pub fn main() !void {
     var end = timer.lap();
     std.debug.warn("create (loop):  \t{d}\n", .{@intToFloat(f64, end) / 1000000000});
 
-    var velocities0 = try std.heap.page_allocator.alloc(VelocityComponent, 1000000);
+    var velocities0 = try std.heap.c_allocator.alloc(VelocityComponent, 1000000);
     std.mem.set(VelocityComponent, velocities0, VelocityComponent{ .vel = zm.Vec2f.One });
-    var positions0 = try std.heap.page_allocator.alloc(PositionComponent, 1000000);
+    var positions0 = try std.heap.c_allocator.alloc(PositionComponent, 1000000);
     std.mem.set(PositionComponent, positions0, PositionComponent{ .pos = zm.Vec2f.Zero });
 
     timer.reset();
@@ -83,8 +84,8 @@ pub fn main() !void {
     end = timer.lap();
     std.debug.warn("create (slice): \t{d}\n", .{@intToFloat(f64, end) / 1000000000});
 
-    std.heap.page_allocator.free(velocities0);
-    std.heap.page_allocator.free(positions0);
+    std.heap.c_allocator.free(velocities0);
+    std.heap.c_allocator.free(positions0);
 
     var physicsSystem = PhysicsSystem.init();
     try world.registerSystem(&physicsSystem.system);

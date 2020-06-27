@@ -9,8 +9,6 @@ pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
 
-    const valgrind = b.option(bool, "valgrind", "links libc for better valgrind support") orelse false;
-
     const core_test = b.addTest("core/test/test.zig");
     core_test.setBuildMode(mode);
     zf.addZetaModule(core_test, .Core);
@@ -39,6 +37,7 @@ pub fn build(b: *Builder) void {
 
     const examples = [_]Example{
         .{ .name = "simple", .path = "examples/simple.zig", .libs = 0b110 },
+        .{ .name = "render", .path = "examples/render/render.zig", .libs = 0b111 },
     };
 
     for (examples) |ex| {
@@ -48,7 +47,7 @@ pub fn build(b: *Builder) void {
 
         if (ex.libs & 0b100 == 0b100) zf.addZetaModule(exe, .Core);
         if (ex.libs & 0b010 == 0b010) zf.addZetaModule(exe, .Math);
-        if (ex.libs & 0b001 == 0b001) zf.addZetaModule(exe, .Render) else if (valgrind) exe.linkLibC();
+        if (ex.libs & 0b001 == 0b001) zf.addZetaModule(exe, .Render) else exe.linkLibC();
 
         const run = exe.run();
         const step = b.step(ex.name, b.fmt("run example {}", .{ex.name}));
