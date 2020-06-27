@@ -3,11 +3,13 @@ const Builder = std.build.Builder;
 
 const zf = @import("pkg.zig").Pkg(".");
 
-const Example = struct{ name: []const u8, path: []const u8, libs: u3 };
+const Example = struct { name: []const u8, path: []const u8, libs: u3 };
 
 pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
+
+    const valgrind = b.option(bool, "valgrind", "links libc for better valgrind support") orelse false;
 
     const core_test = b.addTest("core/test/test.zig");
     core_test.setBuildMode(mode);
@@ -46,7 +48,7 @@ pub fn build(b: *Builder) void {
 
         if (ex.libs & 0b100 == 0b100) zf.addZetaModule(exe, .Core);
         if (ex.libs & 0b010 == 0b010) zf.addZetaModule(exe, .Math);
-        if (ex.libs & 0b001 == 0b001) zf.addZetaModule(exe, .Render) else exe.linkLibC();
+        if (ex.libs & 0b001 == 0b001) zf.addZetaModule(exe, .Render) else if (valgrind) exe.linkLibC();
 
         const run = exe.run();
         const step = b.step(ex.name, b.fmt("run example {}", .{ex.name}));
