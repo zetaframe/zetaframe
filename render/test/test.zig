@@ -1,4 +1,4 @@
-pub const zm = @import("zetamath");
+const zm = @import("zetamath");
 usingnamespace @import("zetarender");
 
 const std = @import("std");
