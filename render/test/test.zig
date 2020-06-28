@@ -108,7 +108,7 @@ test "vulkan_backend" {
 
         try vbackend.submit(&command);
 
-        std.debug.warn("fps: {d}\n", .{1 / (@intToFloat(f64, timer.lap()) / 1000000000)});
+        std.log.info(.tests, "fps: {d}\n", .{1 / (@intToFloat(f64, timer.lap()) / 1000000000)});
     }
 }
 
@@ -174,7 +174,7 @@ test "api" {
     while (testWindow.isRunning()) {
         testWindow.update();
         counter += 0.001;
-        if (counter > 1000) {
+        if (counter > 500) {
             break;
         }
     }

@@ -28,6 +28,7 @@ pub const Swapchain = struct {
     gpu: *Gpu,
     window: *windowing.Window,
 
+    swapchain_support: SwapchainSupportDetails,
     images: []vk.Image,
     imageviews: []vk.ImageView,
     image_format: vk.Format,
@@ -44,6 +45,7 @@ pub const Swapchain = struct {
             .gpu = undefined,
             .window = undefined,
 
+            .swapchain_support = undefined,
             .images = undefined,
             .imageviews = undefined,
             .image_format = undefined,
@@ -72,6 +74,8 @@ pub const Swapchain = struct {
         self.allocator.free(self.images);
 
         vk.DestroySwapchainKHR(self.gpu.device, self.swapchain, null);
+
+        self.swapchain_support.deinit();
     }
 
     pub fn acquireNextImage(self: *Self, semaphore: vk.Semaphore, imageIndex: *u32) !bool {
@@ -110,15 +114,15 @@ pub const Swapchain = struct {
     }
 
     fn createSwapchain(self: *Self) !void {
-        const swapchainSupport = try querySwapchainSupport(self.allocator, self.gpu.physical_device, self.gpu.surface);
+        self.swapchain_support = try querySwapchainSupport(self.allocator, self.gpu.physical_device, self.gpu.surface);
 
-        const surfaceFormat = chooseSwapchainSurfaceFormat(swapchainSupport.formats.items);
-        const presentMode = chooseSwapchainPresentMode(swapchainSupport.present_modes.items);
-        const extent = chooseSwapchainExtent(swapchainSupport.capabilities, self.window.window);
+        const surfaceFormat = chooseSwapchainSurfaceFormat(self.swapchain_support.formats.items);
+        const presentMode = chooseSwapchainPresentMode(self.swapchain_support.present_modes.items);
+        const extent = chooseSwapchainExtent(self.swapchain_support.capabilities, self.window.window);
 
-        var imageCount: u32 = swapchainSupport.capabilities.minImageCount + 1;
-        if (swapchainSupport.capabilities.maxImageCount > 0) {
-            imageCount = std.math.min(imageCount, swapchainSupport.capabilities.maxImageCount);
+        var imageCount: u32 = self.swapchain_support.capabilities.minImageCount + 1;
+        if (self.swapchain_support.capabilities.maxImageCount > 0) {
+            imageCount = std.math.min(imageCount, self.swapchain_support.capabilities.maxImageCount);
         }
 
         const indices = self.gpu.indices;
@@ -139,7 +143,7 @@ pub const Swapchain = struct {
             .queueFamilyIndexCount = if (differentFamilies) 2 else 0,
             .pQueueFamilyIndices = if (differentFamilies) &queueFamilyIndices else undefined,
 
-            .preTransform = swapchainSupport.capabilities.currentTransform,
+            .preTransform = self.swapchain_support.capabilities.currentTransform,
             .compositeAlpha = vk.CompositeAlphaFlagsKHR{ .opaque = true },
 
             .presentMode = presentMode,

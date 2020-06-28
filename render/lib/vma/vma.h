@@ -23,13 +23,9 @@
 #ifndef AMD_VULKAN_MEMORY_ALLOCATOR_H
 #define AMD_VULKAN_MEMORY_ALLOCATOR_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /** \mainpage Vulkan Memory Allocator
 
-<b>Version 3.0.0-development</b> (2020-03-23)
+<b>Version 3.0.0-development</b> (2020-06-24)
 
 Copyright (c) 2017-2020 Advanced Micro Devices, Inc. All rights reserved. \n
 License: MIT
@@ -66,10 +62,10 @@ Documentation of all members: vk_mem_alloc.h
       - [Ring buffer](@ref linear_algorithm_ring_buffer)
     - [Buddy allocation algorithm](@ref buddy_algorithm)
   - \subpage defragmentation
-  	- [Defragmenting CPU memory](@ref defragmentation_cpu)
-  	- [Defragmenting GPU memory](@ref defragmentation_gpu)
-  	- [Additional notes](@ref defragmentation_additional_notes)
-  	- [Writing custom allocation algorithm](@ref defragmentation_custom_algorithm)
+      - [Defragmenting CPU memory](@ref defragmentation_cpu)
+      - [Defragmenting GPU memory](@ref defragmentation_gpu)
+      - [Additional notes](@ref defragmentation_additional_notes)
+      - [Writing custom allocation algorithm](@ref defragmentation_custom_algorithm)
   - \subpage lost_allocations
   - \subpage statistics
     - [Numeric statistics](@ref statistics_numeric_statistics)
@@ -150,7 +146,7 @@ them before every `#include` of this library.
 
 At program startup:
 
--# Initialize Vulkan to have `VkPhysicalDevice` and `VkDevice` object.
+-# Initialize Vulkan to have `VkPhysicalDevice`, `VkDevice` and `VkInstance` object.
 -# Fill VmaAllocatorCreateInfo structure and create #VmaAllocator object by
    calling vmaCreateAllocator().
 
@@ -158,6 +154,7 @@ At program startup:
 VmaAllocatorCreateInfo allocatorInfo = {};
 allocatorInfo.physicalDevice = physicalDevice;
 allocatorInfo.device = device;
+allocatorInfo.instance = instance;
 
 VmaAllocator allocator;
 vmaCreateAllocator(&allocatorInfo, &allocator);
@@ -1506,6 +1503,7 @@ This is a more complex situation. Different solutions are possible,
 and the best one depends on specific GPU type, but you can use this simple approach for the start.
 Prefer to write to such resource sequentially (e.g. using `memcpy`).
 Don't perform random access or any reads from it on CPU, as it may be very slow.
+Also note that textures written directly from the host through a mapped pointer need to be in LINEAR not OPTIMAL layout.
 
 \subsection usage_patterns_readback Readback
 
@@ -1538,10 +1536,10 @@ directly instead of submitting explicit transfer (see below).
 For resources that you frequently write on CPU and read on GPU, many solutions are possible:
 
 -# Create one copy in video memory using #VMA_MEMORY_USAGE_GPU_ONLY,
-   second copy in system memory using #VMA_MEMORY_USAGE_CPU_ONLY and submit explicit tranfer each time.
--# Create just single copy using #VMA_MEMORY_USAGE_CPU_TO_GPU, map it and fill it on CPU,
+   second copy in system memory using #VMA_MEMORY_USAGE_CPU_ONLY and submit explicit transfer each time.
+-# Create just a single copy using #VMA_MEMORY_USAGE_CPU_TO_GPU, map it and fill it on CPU,
    read it directly on GPU.
--# Create just single copy using #VMA_MEMORY_USAGE_CPU_ONLY, map it and fill it on CPU,
+-# Create just a single copy using #VMA_MEMORY_USAGE_CPU_ONLY, map it and fill it on CPU,
    read it directly on GPU.
 
 Which solution is the most efficient depends on your resource and especially on the GPU.
@@ -1568,6 +1566,10 @@ solutions are possible:
 
 You should take some measurements to decide which option is faster in case of your specific
 resource.
+
+Note that textures accessed directly from the host through a mapped pointer need to be in LINEAR layout,
+which may slow down their usage on the device.
+Textures accessed only by the device and transfer operations can use OPTIMAL layout.
 
 If you don't want to specialize your code for specific types of GPUs, you can still make
 an simple optimization for cases when your resource ends up in mappable memory to use it
@@ -1878,6 +1880,7 @@ Features deliberately excluded from the scope of this library:
   objects in CPU memory (not Vulkan memory), allocation failures are not checked
   and handled gracefully, because that would complicate code significantly and
   is usually not needed in desktop PC applications anyway.
+  Success of an allocation is just checked with an assert.
 - Code free of any compiler warnings. Maintaining the library to compile and
   work correctly on so many different platforms is hard enough. Being free of 
   any warnings, on any version of any compiler, is simply not feasible.
@@ -1886,6 +1889,20 @@ Features deliberately excluded from the scope of this library:
   are not going to be included into this repository.
 
 */
+
+#if VMA_RECORDING_ENABLED
+    #include <chrono>
+    #if defined(_WIN32)
+        #include <windows.h>
+    #else
+        #include <sstream>
+        #include <thread>
+    #endif
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
 Define this macro to 0/1 to disable/enable support for recording functionality,
@@ -1930,14 +1947,6 @@ available through VmaAllocatorCreateInfo::pRecordSettings.
 
 #ifndef VULKAN_H_
     #include <vulkan/vulkan.h>
-#endif
-
-#if VMA_RECORDING_ENABLED
-    #if defined(_WIN32)
-        #include <windows.h>
-    #else
-        #error VMA Recording functionality is not yet available for non-Windows platforms
-    #endif
 #endif
 
 // Define this macro to declare maximum supported Vulkan version in format AAABBBCCC,
@@ -2581,7 +2590,7 @@ typedef enum VmaMemoryUsage
     Memory that is both mappable on host (guarantees to be `HOST_VISIBLE`) and preferably fast to access by GPU.
     CPU access is typically uncached. Writes may be write-combined.
 
-    Usage: Resources written frequently by host (dynamic), read by device. E.g. textures, vertex buffers, uniform buffers updated every frame or every draw call.
+    Usage: Resources written frequently by host (dynamic), read by device. E.g. textures (with LINEAR layout), vertex buffers, uniform buffers updated every frame or every draw call.
     */
     VMA_MEMORY_USAGE_CPU_TO_GPU = 3,
     /** Memory mappable on host (guarantees to be `HOST_VISIBLE`) and cached.
@@ -2964,9 +2973,9 @@ typedef struct VmaPoolStats {
 @param[out] pPool Handle to created pool.
 */
 VMA_CALL_PRE VkResult VMA_CALL_POST vmaCreatePool(
-	VmaAllocator VMA_NOT_NULL allocator,
-	const VmaPoolCreateInfo* VMA_NOT_NULL pCreateInfo,
-	VmaPool VMA_NULLABLE * VMA_NOT_NULL pPool);
+    VmaAllocator VMA_NOT_NULL allocator,
+    const VmaPoolCreateInfo* VMA_NOT_NULL pCreateInfo,
+    VmaPool VMA_NULLABLE * VMA_NOT_NULL pPool);
 
 /** \brief Destroys #VmaPool object and frees Vulkan device memory.
 */
@@ -3084,6 +3093,12 @@ typedef struct VmaAllocationInfo {
     /** \brief Size of this allocation, in bytes.
 
     It never changes, unless allocation is lost.
+
+    \note Allocation size returned in this variable may be greater than the size
+    requested for the resource e.g. as `VkBufferCreateInfo::size`. Whole size of the
+    allocation is accessible for operations on memory e.g. using a pointer after
+    mapping with vmaMapMemory(), but operations on the resource e.g. using
+    `vkCmdCopyBuffer` must be limited to the size of the resource.
     */
     VkDeviceSize size;
     /** \brief Pointer to the beginning of this allocation as mapped data.
@@ -4220,12 +4235,12 @@ static VkAllocationCallbacks VmaEmptyAllocationCallbacks = {
 // Returns number of bits set to 1 in (v).
 static inline uint32_t VmaCountBitsSet(uint32_t v)
 {
-	uint32_t c = v - ((v >> 1) & 0x55555555);
-	c = ((c >>  2) & 0x33333333) + (c & 0x33333333);
-	c = ((c >>  4) + c) & 0x0F0F0F0F;
-	c = ((c >>  8) + c) & 0x00FF00FF;
-	c = ((c >> 16) + c) & 0x0000FFFF;
-	return c;
+    uint32_t c = v - ((v >> 1) & 0x55555555);
+    c = ((c >>  2) & 0x33333333) + (c & 0x33333333);
+    c = ((c >>  4) + c) & 0x0F0F0F0F;
+    c = ((c >>  8) + c) & 0x00FF00FF;
+    c = ((c >> 16) + c) & 0x0000FFFF;
+    return c;
 }
 
 // Aligns given value up to nearest multiply of align value. For example: VmaAlignUp(11, 8) = 16.
@@ -4233,7 +4248,7 @@ static inline uint32_t VmaCountBitsSet(uint32_t v)
 template <typename T>
 static inline T VmaAlignUp(T val, T align)
 {
-	return (val + align - 1) / align * align;
+    return (val + align - 1) / align * align;
 }
 // Aligns given value down to nearest multiply of align value. For example: VmaAlignUp(11, 8) = 8.
 // Use types like uint32_t, uint64_t as T.
@@ -4247,7 +4262,7 @@ static inline T VmaAlignDown(T val, T align)
 template <typename T>
 static inline T VmaRoundDiv(T x, T y)
 {
-	return (x + (y / (T)2)) / y;
+    return (x + (y / (T)2)) / y;
 }
 
 /*
@@ -4264,7 +4279,7 @@ inline bool VmaIsPow2(T x)
 // Returns smallest power of 2 greater or equal to v.
 static inline uint32_t VmaNextPow2(uint32_t v)
 {
-	v--;
+    v--;
     v |= v >> 1;
     v |= v >> 2;
     v |= v >> 4;
@@ -4275,7 +4290,7 @@ static inline uint32_t VmaNextPow2(uint32_t v)
 }
 static inline uint64_t VmaNextPow2(uint64_t v)
 {
-	v--;
+    v--;
     v |= v >> 1;
     v |= v >> 2;
     v |= v >> 4;
@@ -4618,10 +4633,11 @@ static inline void VmaPnextChainPushFront(MainT* mainStruct, NewT* newStruct)
 
 static void* VmaMalloc(const VkAllocationCallbacks* pAllocationCallbacks, size_t size, size_t alignment)
 {
+    void* result = VMA_NULL;
     if((pAllocationCallbacks != VMA_NULL) &&
         (pAllocationCallbacks->pfnAllocation != VMA_NULL))
     {
-        return (*pAllocationCallbacks->pfnAllocation)(
+        result = (*pAllocationCallbacks->pfnAllocation)(
             pAllocationCallbacks->pUserData,
             size,
             alignment,
@@ -4629,8 +4645,10 @@ static void* VmaMalloc(const VkAllocationCallbacks* pAllocationCallbacks, size_t
     }
     else
     {
-        return VMA_SYSTEM_ALIGNED_MALLOC(size, alignment);
+        result = VMA_SYSTEM_ALIGNED_MALLOC(size, alignment);
     }
+    VMA_ASSERT(result != VMA_NULL && "CPU memory allocation failed.");
+    return result;
 }
 
 static void VmaFree(const VkAllocationCallbacks* pAllocationCallbacks, void* ptr)
@@ -7555,8 +7573,7 @@ private:
     VmaRecordFlags m_Flags;
     FILE* m_File;
     VMA_MUTEX m_FileMutex;
-    int64_t m_Freq;
-    int64_t m_StartCounter;
+    std::chrono::time_point<std::chrono::high_resolution_clock> m_RecordingStartTime;
 
     void GetBasicParams(CallParams& outParams);
 
@@ -14845,8 +14862,7 @@ VmaRecorder::VmaRecorder() :
     m_UseMutex(true),
     m_Flags(0),
     m_File(VMA_NULL),
-    m_Freq(INT64_MAX),
-    m_StartCounter(INT64_MAX)
+    m_RecordingStartTime(std::chrono::high_resolution_clock::now())
 {
 }
 
@@ -14855,15 +14871,23 @@ VkResult VmaRecorder::Init(const VmaRecordSettings& settings, bool useMutex)
     m_UseMutex = useMutex;
     m_Flags = settings.flags;
 
-    QueryPerformanceFrequency((LARGE_INTEGER*)&m_Freq);
-    QueryPerformanceCounter((LARGE_INTEGER*)&m_StartCounter);
-
+#if defined(_WIN32)
     // Open file for writing.
     errno_t err = fopen_s(&m_File, settings.pFilePath, "wb");
+
     if(err != 0)
     {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
+#else
+    // Open file for writing.
+    m_File = fopen(settings.pFilePath, "wb");
+
+    if(m_File == 0)
+    {
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+#endif
 
     // Write header.
     fprintf(m_File, "%s\n", "Vulkan Memory Allocator,Calls recording");
@@ -15323,7 +15347,8 @@ VmaRecorder::UserDataString::UserDataString(VmaAllocationCreateFlags allocFlags,
         }
         else
         {
-            sprintf_s(m_PtrStr, "%p", pUserData);
+            // If VMA_ALLOCATION_CREATE_USER_DATA_COPY_STRING_BIT is not specified, convert the string's memory address to a string and store it.
+            snprintf(m_PtrStr, 17, "%p", pUserData);
             m_Str = m_PtrStr;
         }
     }
@@ -15390,11 +15415,22 @@ void VmaRecorder::WriteConfiguration(
 
 void VmaRecorder::GetBasicParams(CallParams& outParams)
 {
-    outParams.threadId = GetCurrentThreadId();
+    #if defined(_WIN32)
+        outParams.threadId = GetCurrentThreadId();
+    #else
+        // Use C++11 features to get thread id and convert it to uint32_t.
+        // There is room for optimization since sstream is quite slow.
+        // Is there a better way to convert std::this_thread::get_id() to uint32_t?
+        std::thread::id thread_id = std::this_thread::get_id();
+        stringstream thread_id_to_string_converter;
+        thread_id_to_string_converter << thread_id;
+        string thread_id_as_string = thread_id_to_string_converter.str();
+        outParams.threadId = static_cast<uint32_t>(std::stoi(thread_id_as_string.c_str()));
+    #endif
+    
+    auto current_time = std::chrono::high_resolution_clock::now();
 
-    LARGE_INTEGER counter;
-    QueryPerformanceCounter(&counter);
-    outParams.time = (double)(counter.QuadPart - m_StartCounter) / (double)m_Freq;
+    outParams.time = std::chrono::duration<double, std::chrono::seconds::period>(current_time - m_RecordingStartTime).count();
 }
 
 void VmaRecorder::PrintPointerList(uint64_t count, const VmaAllocation* pItems)
@@ -15782,6 +15818,17 @@ void VmaAllocator_T::ImportVulkanFunctions_Dynamic()
     VMA_FETCH_DEVICE_FUNC(vkDestroyImage, PFN_vkDestroyImage, "vkDestroyImage");
     VMA_FETCH_DEVICE_FUNC(vkCmdCopyBuffer, PFN_vkCmdCopyBuffer, "vkCmdCopyBuffer");
 
+#if VMA_VULKAN_VERSION >= 1001000
+    if(m_VulkanApiVersion >= VK_MAKE_VERSION(1, 1, 0))
+    {
+        VMA_FETCH_DEVICE_FUNC(vkGetBufferMemoryRequirements2KHR, PFN_vkGetBufferMemoryRequirements2, "vkGetBufferMemoryRequirements2");
+        VMA_FETCH_DEVICE_FUNC(vkGetImageMemoryRequirements2KHR, PFN_vkGetImageMemoryRequirements2, "vkGetImageMemoryRequirements2");
+        VMA_FETCH_DEVICE_FUNC(vkBindBufferMemory2KHR, PFN_vkBindBufferMemory2, "vkBindBufferMemory2");
+        VMA_FETCH_DEVICE_FUNC(vkBindImageMemory2KHR, PFN_vkBindImageMemory2, "vkBindImageMemory2");
+        VMA_FETCH_INSTANCE_FUNC(vkGetPhysicalDeviceMemoryProperties2KHR, PFN_vkGetPhysicalDeviceMemoryProperties2, "vkGetPhysicalDeviceMemoryProperties2");
+    }
+#endif
+
 #if VMA_DEDICATED_ALLOCATION
     if(m_UseKhrDedicatedAllocation)
     {
@@ -15799,7 +15846,7 @@ void VmaAllocator_T::ImportVulkanFunctions_Dynamic()
 #endif // #if VMA_BIND_MEMORY2
 
 #if VMA_MEMORY_BUDGET
-    if(m_UseExtMemoryBudget && m_VulkanApiVersion < VK_MAKE_VERSION(1, 1, 0))
+    if(m_UseExtMemoryBudget)
     {
         VMA_FETCH_INSTANCE_FUNC(vkGetPhysicalDeviceMemoryProperties2KHR, PFN_vkGetPhysicalDeviceMemoryProperties2KHR, "vkGetPhysicalDeviceMemoryProperties2KHR");
     }
@@ -17880,9 +17927,9 @@ VMA_CALL_PRE VkResult VMA_CALL_POST vmaFindMemoryTypeIndexForImageInfo(
 }
 
 VMA_CALL_PRE VkResult VMA_CALL_POST vmaCreatePool(
-	VmaAllocator allocator,
-	const VmaPoolCreateInfo* pCreateInfo,
-	VmaPool* pPool)
+    VmaAllocator allocator,
+    const VmaPoolCreateInfo* pCreateInfo,
+    VmaPool* pPool)
 {
     VMA_ASSERT(allocator && pCreateInfo && pPool);
     
@@ -18017,7 +18064,7 @@ VMA_CALL_PRE VkResult VMA_CALL_POST vmaAllocateMemory(
 
     VMA_DEBUG_GLOBAL_MUTEX_LOCK
 
-	VkResult result = allocator->AllocateMemory(
+    VkResult result = allocator->AllocateMemory(
         *pVkMemoryRequirements,
         false, // requiresDedicatedAllocation
         false, // prefersDedicatedAllocation
@@ -18045,7 +18092,7 @@ VMA_CALL_PRE VkResult VMA_CALL_POST vmaAllocateMemory(
         allocator->GetAllocationInfo(*pAllocation, pAllocationInfo);
     }
 
-	return result;
+    return result;
 }
 
 VMA_CALL_PRE VkResult VMA_CALL_POST vmaAllocateMemoryPages(
@@ -18067,7 +18114,7 @@ VMA_CALL_PRE VkResult VMA_CALL_POST vmaAllocateMemoryPages(
 
     VMA_DEBUG_GLOBAL_MUTEX_LOCK
 
-	VkResult result = allocator->AllocateMemory(
+    VkResult result = allocator->AllocateMemory(
         *pVkMemoryRequirements,
         false, // requiresDedicatedAllocation
         false, // prefersDedicatedAllocation
@@ -18099,7 +18146,7 @@ VMA_CALL_PRE VkResult VMA_CALL_POST vmaAllocateMemoryPages(
         }
     }
 
-	return result;
+    return result;
 }
 
 VMA_CALL_PRE VkResult VMA_CALL_POST vmaAllocateMemoryForBuffer(
@@ -18152,7 +18199,7 @@ VMA_CALL_PRE VkResult VMA_CALL_POST vmaAllocateMemoryForBuffer(
         allocator->GetAllocationInfo(*pAllocation, pAllocationInfo);
     }
 
-	return result;
+    return result;
 }
 
 VMA_CALL_PRE VkResult VMA_CALL_POST vmaAllocateMemoryForImage(
@@ -18204,7 +18251,7 @@ VMA_CALL_PRE VkResult VMA_CALL_POST vmaAllocateMemoryForImage(
         allocator->GetAllocationInfo(*pAllocation, pAllocationInfo);
     }
 
-	return result;
+    return result;
 }
 
 VMA_CALL_PRE void VMA_CALL_POST vmaFreeMemory(
@@ -18631,7 +18678,6 @@ VMA_CALL_PRE VkResult VMA_CALL_POST vmaBeginDefragmentationPass(
 {
     VMA_ASSERT(allocator);
     VMA_ASSERT(pInfo);
-    VMA_HEAVY_ASSERT(VmaValidatePointerArray(pInfo->moveCount, pInfo->pMoves));
 
     VMA_DEBUG_LOG("vmaBeginDefragmentationPass");
 

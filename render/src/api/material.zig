@@ -56,11 +56,14 @@ pub const Material = struct {
 
         self.gpu = gpu;
 
-        try self.pipeline.init(allocator, gpu, renderPass, swapchain.window.size, swapchain.extent, swapchain.image_format);
+        try self.pipeline.init(allocator, gpu, renderPass);
     }
 
     pub fn deinit(self: Self) void {
         self.pipeline.deinit();
+
+        self.description.shaders.fragment.deinit();
+        self.description.shaders.vertex.deinit();
     }
 };
 

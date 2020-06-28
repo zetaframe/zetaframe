@@ -128,9 +128,6 @@ pub const Pipeline = struct {
     pipeline: vk.Pipeline,
 
     gpu: *Gpu,
-    extent: vk.Extent2D,
-    swapchain_image_format: vk.Format,
-    size: windowing.Size,
 
     vert_shader: shader.Shader,
     vert_shader_module: vk.ShaderModule,
@@ -142,6 +139,8 @@ pub const Pipeline = struct {
 
     shader_stages: [2]vk.PipelineShaderStageCreateInfo,
 
+    vertex_binding_desciptions: std.ArrayList(vk.VertexInputBindingDescription),
+    vertex_attribute_desciptions: std.ArrayList(vk.VertexInputAttributeDescription),
     vertex_input_info: vk.PipelineVertexInputStateCreateInfo,
     input_assembly_info: vk.PipelineInputAssemblyStateCreateInfo,
     viewport_info: vk.PipelineViewportStateCreateInfo,
@@ -161,9 +160,6 @@ pub const Pipeline = struct {
             .pipeline = undefined,
 
             .gpu = undefined,
-            .extent = undefined,
-            .swapchain_image_format = undefined,
-            .size = undefined,
 
             .vert_shader = vertShader,
             .vert_shader_module = undefined,
@@ -175,6 +171,8 @@ pub const Pipeline = struct {
 
             .shader_stages = undefined,
 
+            .vertex_binding_desciptions = undefined,
+            .vertex_attribute_desciptions = undefined,
             .vertex_input_info = undefined,
             .input_assembly_info = undefined,
             .viewport_info = undefined,
@@ -187,13 +185,10 @@ pub const Pipeline = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, renderPass: *RenderPass, size: windowing.Size, extent: vk.Extent2D, swapchainImageFormat: vk.Format) !void {
+    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, renderPass: *RenderPass) !void {
         self.allocator = allocator;
 
         self.gpu = gpu;
-        self.extent = extent;
-        self.swapchain_image_format = swapchainImageFormat;
-        self.size = size;
 
         try self.createProgrammable();
         try self.createFixed();
@@ -241,6 +236,9 @@ pub const Pipeline = struct {
 
         vk.DestroyShaderModule(self.gpu.device, self.vert_shader_module, null);
         vk.DestroyShaderModule(self.gpu.device, self.fragment_shader_module, null);
+
+        self.vertex_binding_desciptions.deinit();
+        self.vertex_attribute_desciptions.deinit();
     }
 
     fn createProgrammable(self: *Self) !void {
@@ -274,18 +272,18 @@ pub const Pipeline = struct {
     }
 
     fn createFixed(self: *Self) !void {
-        var bindingDescriptions = std.ArrayList(vk.VertexInputBindingDescription).init(self.allocator);
-        var attributeDescriptions = std.ArrayList(vk.VertexInputAttributeDescription).init(self.allocator);
+        self.vertex_binding_desciptions = std.ArrayList(vk.VertexInputBindingDescription).init(self.allocator);
+        self.vertex_attribute_desciptions = std.ArrayList(vk.VertexInputAttributeDescription).init(self.allocator);
 
         for (self.settings.inputs) |input, i| {
-            try bindingDescriptions.append(vk.VertexInputBindingDescription{
+            try self.vertex_binding_desciptions.append(vk.VertexInputBindingDescription{
                 .binding = self.settings.inputs[i].binding_description.binding,
                 .stride = self.settings.inputs[i].binding_description.stride,
                 .inputRate = .VERTEX,
             });
 
             for (self.settings.inputs[i].attribute_descriptions) |desc, j| {
-                try attributeDescriptions.append(vk.VertexInputAttributeDescription{
+                try self.vertex_attribute_desciptions.append(vk.VertexInputAttributeDescription{
                     .binding = self.settings.inputs[i].binding_description.binding,
                     .location = @intCast(u32, j),
                     .format = self.settings.inputs[i].attribute_descriptions[j].format,
@@ -294,18 +292,12 @@ pub const Pipeline = struct {
             }
         }
 
-        const bindingDescriptionsSlice = bindingDescriptions.toOwnedSlice();
-        bindingDescriptions.deinit();
-
-        const attributeDescriptionsSlice = attributeDescriptions.toOwnedSlice();
-        attributeDescriptions.deinit();
-
         self.vertex_input_info = vk.PipelineVertexInputStateCreateInfo{
-            .vertexBindingDescriptionCount = @intCast(u32, bindingDescriptionsSlice.len),
-            .pVertexBindingDescriptions = bindingDescriptionsSlice.ptr,
+            .vertexBindingDescriptionCount = @intCast(u32, self.vertex_binding_desciptions.items.len),
+            .pVertexBindingDescriptions = self.vertex_binding_desciptions.items.ptr,
 
-            .vertexAttributeDescriptionCount = @intCast(u32, attributeDescriptionsSlice.len),
-            .pVertexAttributeDescriptions = attributeDescriptionsSlice.ptr,
+            .vertexAttributeDescriptionCount = @intCast(u32, self.vertex_attribute_desciptions.items.len),
+            .pVertexAttributeDescriptions = self.vertex_attribute_desciptions.items.ptr,
         };
 
         self.input_assembly_info = vk.PipelineInputAssemblyStateCreateInfo{

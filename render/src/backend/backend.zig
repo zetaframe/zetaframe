@@ -200,7 +200,7 @@ pub const Backend = struct {
         try self.render_pass.init(&self.gpu, self.swapchain.image_format);
 
         command.pipeline.deinit();
-        try command.pipeline.init(self.allocator, &self.gpu, &self.render_pass, self.window.size, self.swapchain.extent, self.swapchain.image_format);
+        try command.pipeline.init(self.allocator, &self.gpu, &self.render_pass);
 
         for (command.framebuffers) |*fb, i| {
             fb.deinit();

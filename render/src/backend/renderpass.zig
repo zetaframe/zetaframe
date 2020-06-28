@@ -16,19 +16,14 @@ const Gpu = @import("gpu.zig").Gpu;
 
 pub const RenderPass = struct {
     const Self = @This();
-    allocator: *Allocator,
 
     gpu: *Gpu,
-    swapchain_image_format: vk.Format,
 
     render_pass: vk.RenderPass,
 
     pub fn new() Self {
         return Self{
-            .allocator = undefined,
-
             .gpu = undefined,
-            .swapchain_image_format = undefined,
 
             .render_pass = undefined,
         };
@@ -36,18 +31,17 @@ pub const RenderPass = struct {
 
     pub fn init(self: *Self, gpu: *Gpu, swapchainImageFormat: vk.Format) !void {
         self.gpu = gpu;
-        self.swapchain_image_format = swapchainImageFormat;
 
-        try self.createRenderPass();
+        try self.createRenderPass(swapchainImageFormat);
     }
 
     pub fn deinit(self: Self) void {
         vk.DestroyRenderPass(self.gpu.device, self.render_pass, null);
     }
 
-    fn createRenderPass(self: *Self) !void {
+    fn createRenderPass(self: *Self, swapchainImageFormat: vk.Format) !void {
         const colorAttachments = [_]vk.AttachmentDescription{vk.AttachmentDescription{
-            .format = self.swapchain_image_format,
+            .format = swapchainImageFormat,
 
             .samples = vk.SampleCountFlags{ .t1 = true },
 
