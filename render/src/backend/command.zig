@@ -70,7 +70,7 @@ pub const Command = struct {
 
     pub fn deinit(self: Self) void {
         vk.DeviceWaitIdle(self.gpu.device) catch unreachable;
-        
+
         vk.FreeCommandBuffers(self.gpu.device, self.gpu.graphics_pool, self.command_buffers);
         self.allocator.free(self.command_buffers);
 

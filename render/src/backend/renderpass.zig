@@ -76,12 +76,12 @@ pub const RenderPass = struct {
 
         const dependencies = [_]vk.SubpassDependency{vk.SubpassDependency{
             .srcSubpass = vk.SUBPASS_EXTERNAL,
-            .srcStageMask = vk.PipelineStageFlags{.colorAttachmentOutput = true},
+            .srcStageMask = vk.PipelineStageFlags{ .colorAttachmentOutput = true },
             .srcAccessMask = undefined,
 
             .dstSubpass = 0,
-            .dstStageMask = vk.PipelineStageFlags{.colorAttachmentOutput = true},
-            .dstAccessMask = vk.AccessFlags{.colorAttachmentWrite = true},
+            .dstStageMask = vk.PipelineStageFlags{ .colorAttachmentOutput = true },
+            .dstAccessMask = vk.AccessFlags{ .colorAttachmentWrite = true },
         }};
 
         const renderPassInfo = vk.RenderPassCreateInfo{

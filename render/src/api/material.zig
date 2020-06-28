@@ -42,7 +42,7 @@ pub const Material = struct {
     pub fn new(description: Description, pipelineSettings: Pipeline.Settings) Self {
         return Self{
             .allocator = undefined,
-            
+
             .description = description,
 
             .gpu = undefined,

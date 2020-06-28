@@ -17,11 +17,8 @@ const Buffer = @import("buffer.zig").Buffer;
 
 pub const Uniform = struct {
     const Self = @This();
-      
-    pub fn new(comptime T: type, allocator: *Allocator) Self {
-        
-        
 
+    pub fn new(comptime T: type, allocator: *Allocator) Self {
         return Self{
             .allocator = undefined,
             .vallocator = undefined,
@@ -37,9 +34,8 @@ pub const UniformManager = struct {
     vallocator: *vma.Allocator,
 
     gpu: *Gpu,
-    
-    pub fn new() Self {
 
+    pub fn new() Self {
         return Self{
             .allocator = undefined,
             .vallocator = undefined,
@@ -55,7 +51,5 @@ pub const UniformManager = struct {
         self.gpu = gpu;
     }
 
-    pub fn deinit(self: Self) void {
-
-    }
+    pub fn deinit(self: Self) void {}
 };

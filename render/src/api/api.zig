@@ -19,7 +19,7 @@ pub const Api = struct {
 
     pub fn new(allocator: *Allocator, window: *windowing.Window) Self {
         var backend = vbackend.Backend.new(allocator, window, vbackend.Swapchain.new(), vbackend.RenderPass.new());
-        
+
         return Self{
             .allocator = allocator,
 

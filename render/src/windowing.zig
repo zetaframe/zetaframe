@@ -62,6 +62,4 @@ fn errorCallback(err: c_int, description: [*c]const u8) callconv(.C) void {
 }
 
 //----- Vulkan Specific
-fn vulkanFramebufferSizeCallback(window: ?*glfw.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
-
-}
+fn vulkanFramebufferSizeCallback(window: ?*glfw.GLFWwindow, width: c_int, height: c_int) callconv(.C) void {}

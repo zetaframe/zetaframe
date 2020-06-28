@@ -20,7 +20,7 @@ pub fn Pkg(zf_path: comptime []const u8) type {
             .dependencies = &[_]Package{mathpkg},
         };
 
-        pub const Module = enum{
+        pub const Module = enum {
             Core,
             Math,
             Render,

@@ -363,7 +363,7 @@ fn findQueueFamilies(allocator: *Allocator, device: vk.PhysicalDevice, surface: 
 
         if (queueFamily.queueFlags.graphics) {
             indices.graphics_family = i;
-        } 
+        }
         if (queueFamily.queueFlags.transfer) {
             indices.transfer_family = i;
         }

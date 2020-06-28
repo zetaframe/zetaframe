@@ -39,7 +39,7 @@ pub const Framebuffer = struct {
             .gpu = gpu,
         };
     }
-    
+
     pub fn deinit(self: Self) void {
         vk.DestroyFramebuffer(self.gpu.device, self.framebuffer, null);
     }
