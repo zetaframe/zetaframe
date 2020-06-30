@@ -77,12 +77,19 @@ pub const MaterialInstance = struct {
     desc_pool: vk.DescriptorPool,
     desc_set_layout: vk.DescriptorSetLayout,
 
-    pub fn init(allocator: *Allocator, vallocator: *vma.Allocator, material: *Material) Self {
+    pub fn new(material: *Material) Self {
         return Self{
-            .allocator = allocator,
-            .vallocator = vallocator,
+            .allocator = undefined,
+            .vallocator = undefined,
 
             .material = material,
+
+            .desc_pool = undefined,
+            .desc_set_layout = undefined,
         };
+    }
+
+    pub fn init(allocator: *Allocator, vallocator: *vma.Allocator) !void {
+        
     }
 };
