@@ -149,7 +149,7 @@ pub const Backend = struct {
 
             .frameInUseCount = MAX_FRAMES_IN_FLIGHT - 1,
 
-            .vulkanApiVersion = vk.API_VERSION_1_0,
+            .vulkanApiVersion = vk.API_VERSION_1_1,
 
             .pVulkanFunctions = null,
 
@@ -263,7 +263,7 @@ pub const Backend = struct {
             .applicationVersion = vk.MAKE_VERSION(1, 0, 0),
             .pEngineName = "zetaframe",
             .engineVersion = vk.MAKE_VERSION(1, 0, 0),
-            .apiVersion = vk.API_VERSION_1_0,
+            .apiVersion = vk.API_VERSION_1_1,
         };
 
         var glfwExtensionCount: u32 = 0;

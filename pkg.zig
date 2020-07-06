@@ -3,6 +3,8 @@ const LibExeObjStep = std.build.LibExeObjStep;
 const Package = std.build.Pkg;
 
 pub fn Pkg(zf_path: comptime []const u8) type {
+    const zva = @import("render/lib/zva/pkg.zig").Pkg(zf_path ++ "render/lib/zva");
+
     return struct {
         pub const corepkg = Package{
             .name = "zetacore",
@@ -17,7 +19,7 @@ pub fn Pkg(zf_path: comptime []const u8) type {
         pub const renderpkg = Package{
             .name = "zetarender",
             .path = zf_path ++ "/render/src/lib.zig",
-            .dependencies = &[_]Package{mathpkg},
+            .dependencies = &[_]Package{mathpkg, zva.pkg},
         };
 
         pub const Module = enum {
@@ -37,7 +39,7 @@ pub fn Pkg(zf_path: comptime []const u8) type {
                 .Render => {
                     step.addPackage(renderpkg);
 
-                    step.linkSystemLibrary("c");
+                    step.linkLibC();
                     step.linkSystemLibrary("glfw");
                     step.linkSystemLibrary("vulkan");
 

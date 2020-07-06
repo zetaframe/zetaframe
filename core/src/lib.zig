@@ -90,7 +90,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
             /// Cleans up the world
             /// Deinits all the storages
-            pub fn deinit(self: Self) void {
+            pub fn deinit(self: *Self) void {
                 self.allocator.free(self.entities);
 
                 var i: usize = 0;
@@ -307,8 +307,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
 
             /// Start up the scheduler
             pub fn run(self: *Self) !void {
-                var iter = self.systems.iterator();
-                while (iter.next()) |system| {
+                for (self.systems.items()) |system| {
                     try system.key.run(self);
                 }
             }
@@ -500,7 +499,7 @@ pub const MultiVecStore = struct {
         };
     }
 
-    pub fn deinit(self: Self) void {
+    pub fn deinit(self: *Self) void {
         self.allocator.free(self.data);
         self.offset_map.deinit();
     }
@@ -524,7 +523,7 @@ pub const MultiVecStore = struct {
         assert(index < self.len);
 
         const sizeT = @sizeOf(T);
-        const offset = self.offset_map.getValue(index).?;
+        const offset = self.offset_map.get(index).?;
 
         var dataBytes = self.data[offset .. offset + sizeT];
         return mem.bytesToValue(T, @ptrCast(*[sizeT]u8, dataBytes));
@@ -534,7 +533,7 @@ pub const MultiVecStore = struct {
         assert(index < self.len);
 
         const sizeT = @sizeOf(T);
-        const offset = self.offset_map.getValue(index).?;
+        const offset = self.offset_map.get(index).?;
 
         var dataBytes = self.data[offset .. offset + sizeT];
         return @ptrCast(*T, @alignCast(@alignOf(T), dataBytes));
@@ -544,10 +543,10 @@ pub const MultiVecStore = struct {
         assert(index < self.len);
 
         const sizeT = @sizeOf(T);
-        const offset = self.offset_map.getValue(index).?;
+        const offset = self.offset_map.get(index).?;
 
-        if (self.offset_map.getValue(index + 1) != null) {
-            assert(self.offset_map.getValue(index + 1).? - offset == sizeT);
+        if (self.offset_map.get(index + 1) != null) {
+            assert(self.offset_map.get(index + 1).? - offset == sizeT);
         }
 
         const dataBytes = mem.toBytes(data);

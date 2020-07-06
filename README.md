@@ -24,6 +24,12 @@ Will later include a system that can be added directly into `core`.
 
 ---
 
+## Building
+
+Use zig master.
+
+---
+
 ## License
 
 See [LICENSE.md](../master/LICENSE.md)
