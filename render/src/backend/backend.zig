@@ -6,8 +6,8 @@ const panic = std.debug.panic;
 
 const vk = @import("../include/vk.zig");
 const VK_SUCCESS = vk.Result.SUCCESS;
-const vma = @import("../include/vma.zig");
 const glfw = @import("../include/glfw.zig");
+const zva = @import("zva");
 
 const windowing = @import("../windowing.zig");
 const shader = @import("shader.zig");
@@ -85,7 +85,8 @@ const MAX_FRAMES_IN_FLIGHT: u32 = 2;
 pub const Backend = struct {
     const Self = @This();
     allocator: *Allocator,
-    vallocator: vma.VmaAllocator,
+    // vallocator: vma.VmaAllocator,
+    vallocator: zva.Allocator,
 
     name: [*c]const u8,
     window: *windowing.Window,
@@ -136,31 +137,33 @@ pub const Backend = struct {
         self.gpu = Gpu.new(self.instance, self.window);
         try self.gpu.init(self.allocator);
 
-        const allocInfo = vma.VmaAllocatorCreateInfo{
-            .physicalDevice = self.gpu.physical_device,
-            .device = self.gpu.device,
-            .instance = self.instance,
+        // const allocInfo = vma.VmaAllocatorCreateInfo{
+        //     .physicalDevice = self.gpu.physical_device,
+        //     .device = self.gpu.device,
+        //     .instance = self.instance,
 
-            .preferredLargeHeapBlockSize = 0,
-            .pHeapSizeLimit = null,
+        //     .preferredLargeHeapBlockSize = 0,
+        //     .pHeapSizeLimit = null,
 
-            .pAllocationCallbacks = null,
-            .pDeviceMemoryCallbacks = null,
+        //     .pAllocationCallbacks = null,
+        //     .pDeviceMemoryCallbacks = null,
 
-            .frameInUseCount = MAX_FRAMES_IN_FLIGHT - 1,
+        //     .frameInUseCount = MAX_FRAMES_IN_FLIGHT - 1,
 
-            .vulkanApiVersion = vk.API_VERSION_1_1,
+        //     .vulkanApiVersion = vk.API_VERSION_1_1,
 
-            .pVulkanFunctions = null,
+        //     .pVulkanFunctions = null,
 
-            .pRecordSettings = null,
+        //     .pRecordSettings = null,
 
-            .flags = 0,
-        };
+        //     .flags = 0,
+        // };
 
-        if (vma.vmaCreateAllocator(&allocInfo, &self.vallocator) != VK_SUCCESS) {
-            return VulkanError.CreateAllocatorFailed;
-        }
+        // if (vma.vmaCreateAllocator(&allocInfo, &self.vallocator) != VK_SUCCESS) {
+        //     return VulkanError.CreateAllocatorFailed;
+        // }
+
+        self.vallocator = zva.Allocator.init(self.allocator, self.gpu.physical_device, self.gpu.device, 128);
 
         try self.swapchain.init(self.allocator, &self.gpu, self.window);
         try self.render_pass.init(&self.gpu, self.swapchain.image_format);
@@ -183,7 +186,8 @@ pub const Backend = struct {
 
         self.allocator.free(self.in_flight_images);
 
-        vma.vmaDestroyAllocator(self.vallocator);
+        // vma.vmaDestroyAllocator(self.vallocator);
+        self.vallocator.deinit();
 
         self.gpu.deinit();
 

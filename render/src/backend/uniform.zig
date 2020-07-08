@@ -10,7 +10,7 @@ const VulkanError = vkbackend.VulkanError;
 const vk = @import("../include/vk.zig");
 const VK_SUCCESS = vk.Result.SUCCESS;
 
-const vma = @import("../include/vma.zig");
+const zva = @import("zva");
 
 const Gpu = @import("gpu.zig").Gpu;
 const Buffer = @import("buffer.zig").Buffer;

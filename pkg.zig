@@ -3,7 +3,7 @@ const LibExeObjStep = std.build.LibExeObjStep;
 const Package = std.build.Pkg;
 
 pub fn Pkg(zf_path: comptime []const u8) type {
-    const zva = @import("render/lib/zva/pkg.zig").Pkg(zf_path ++ "render/lib/zva");
+    const zva = @import("render/lib/zva/pkg.zig").Pkg(zf_path ++ "/render/lib/zva", zf_path ++ "/render/src/include/vk.zig");
 
     return struct {
         pub const corepkg = Package{

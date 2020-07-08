@@ -13,7 +13,7 @@ const Swapchain = @import("swapchain.zig").Swapchain;
 const vk = @import("../include/vk.zig");
 const VK_SUCCESS = vk.Result.SUCCESS;
 
-const vma = @import("../include/vma.zig");
+const zva = @import("zva");
 
 const Gpu = @import("gpu.zig").Gpu;
 const Buffer = @import("buffer.zig").Buffer;
@@ -53,7 +53,7 @@ pub const Command = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, vallocator: *vma.VmaAllocator, gpu: *Gpu, renderPass: *RenderPass, pipeline: *Pipeline, extent: vk.Extent2D, framebuffers: []Framebuffer) !void {
+    pub fn init(self: *Self, allocator: *Allocator, vallocator: *zva.Allocator, gpu: *Gpu, renderPass: *RenderPass, pipeline: *Pipeline, extent: vk.Extent2D, framebuffers: []Framebuffer) !void {
         self.allocator = allocator;
 
         self.gpu = gpu;

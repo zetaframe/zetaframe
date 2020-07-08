@@ -82,7 +82,7 @@ pub fn main() !void {
 
     var timer = std.time.Timer.start() catch unreachable;
     var counter: f32 = 0;
-    // while (testWindow.isRunning()) {
+    while (testWindow.isRunning()) {
         counter += 0.01;
         timer.reset();
 
@@ -101,6 +101,6 @@ pub fn main() !void {
 
         try vbackend.submit(&command);
 
-        // std.log.info(.example, "fps: {d}\n", .{1 / (@intToFloat(f64, timer.lap()) / 1000000000)});
-    // }
+        //std.log.info(.example, "fps: {d}\n", .{1 / (@intToFloat(f64, timer.lap()) / 1000000000)});
+    }
 }

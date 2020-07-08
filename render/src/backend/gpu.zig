@@ -147,6 +147,8 @@ pub const Gpu = struct {
             return VulkanError.NoValidDevices;
         } else {
             self.physical_device = selectedDevice;
+
+            std.log.info(.zetarender, "Using Device: {}\n", .{vk.GetPhysicalDeviceProperties(selectedDevice).deviceName});
         }
 
         self.properties = vk.GetPhysicalDeviceProperties(self.physical_device);
@@ -317,6 +319,8 @@ fn calculateDeviceScore(allocator: *Allocator, device: vk.PhysicalDevice, surfac
     if (swapchainSupport.formats.items.len == 0 and swapchainSupport.present_modes.items.len == 0) {
         return 0;
     }
+
+    std.log.debug(.zetarender, "Device: {}, Type: {}, Score: {}\n", .{deviceProperties.deviceName, deviceProperties.deviceType, score});
 
     return score;
 }
