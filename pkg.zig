@@ -42,9 +42,6 @@ pub fn Pkg(zf_path: comptime []const u8) type {
                     step.linkLibC();
                     step.linkSystemLibrary("glfw");
                     step.linkSystemLibrary("vulkan");
-
-                    step.linkSystemLibrary("c++");
-                    step.addCSourceFile(zf_path ++ "/render/lib/vma/vma.cc", &[_][]const u8{});
                 },
             }
         }
