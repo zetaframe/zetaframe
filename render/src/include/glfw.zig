@@ -1,5 +1,9 @@
 const vk = @import("vk.zig");
 
+pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) callconv(vk.vulkan_call_conv) vk.PfnVoidFunction;
+pub extern fn glfwGetPhysicalDevicePresentationSupport(instance: vk.Instance, pdev: vk.PhysicalDevice, queuefamily: u32) callconv(vk.vulkan_call_conv) c_int;
+pub extern  fn glfwCreateWindowSurface(instance: vk.Instance, window: *GLFWwindow, allocation_callbacks: ?*const vk.AllocationCallbacks, surface: *vk.SurfaceKHR) callconv(vk.vulkan_call_conv) vk.Result;
+
 pub const GLFWmonitor = @OpaqueType();
 pub const GLFWwindow = @OpaqueType();
 pub const GLFWcursor = @OpaqueType();
@@ -139,9 +143,6 @@ pub extern fn glfwExtensionSupported(extension: ?[*:0]const u8) c_int;
 pub extern fn glfwGetProcAddress(procname: ?[*:0]const u8) GLFWglproc;
 pub extern fn glfwVulkanSupported() c_int;
 pub extern fn glfwGetRequiredInstanceExtensions(count: *u32) [*]const [*:0]const u8;
-pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: ?[*:0]const u8) GLFWvkproc;
-pub extern fn glfwGetPhysicalDevicePresentationSupport(instance: vk.Instance, device: vk.PhysicalDevice, queuefamily: u32) c_int;
-pub extern fn glfwCreateWindowSurface(instance: vk.Instance, window: *GLFWwindow, allocator: ?*const vk.AllocationCallbacks, surface: *vk.SurfaceKHR) vk.Result;
 
 pub extern fn glfwGetWin32Window(window: ?*GLFWwindow) ?*c_void;
 

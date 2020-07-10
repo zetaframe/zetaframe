@@ -8,11 +8,10 @@ const vkbackend = @import("../backend/backend.zig");
 const VulkanError = vkbackend.VulkanError;
 
 const vk = @import("../include/vk.zig");
-const VK_SUCCESS = vk.Result.SUCCESS;
 
 const vma = @import("../include/vma.zig");
 
-const Gpu = @import("../backend/gpu.zig").Gpu;
+const Context = @import("../backend/context.zig").Context;
 const Buffer = @import("../backend/buffer.zig").Buffer;
 const Swapchain = @import("../backend/swapchain.zig").Swapchain;
 const RenderPass = @import("../backend/renderpass.zig").RenderPass;
@@ -35,7 +34,7 @@ pub const Material = struct {
 
     description: Description,
 
-    gpu: *Gpu,
+    context: *Context,
 
     pipeline: Pipeline,
 
@@ -45,18 +44,18 @@ pub const Material = struct {
 
             .description = description,
 
-            .gpu = undefined,
+            .context = undefined,
 
             .pipeline = Pipeline.new(pipelineSettings, description.shaders.vertex, description.shaders.fragment),
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, renderPass: *RenderPass, swapchain: *Swapchain) !void {
+    pub fn init(self: *Self, allocator: *Allocator, context: *Context, renderPass: *RenderPass, swapchain: *Swapchain) !void {
         self.allocator = allocator;
 
-        self.gpu = gpu;
+        self.context = context;
 
-        try self.pipeline.init(allocator, gpu, renderPass);
+        try self.pipeline.init(allocator, context, renderPass);
     }
 
     pub fn deinit(self: Self) void {

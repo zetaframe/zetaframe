@@ -10,85 +10,101 @@ const vkbackend = @import("backend.zig");
 const VulkanError = vkbackend.VulkanError;
 
 const vk = @import("../include/vk.zig");
-const VK_SUCCESS = vk.Result.SUCCESS;
 
-const Gpu = @import("gpu.zig").Gpu;
+const Context = @import("context.zig").Context;
 
 pub const RenderPass = struct {
     const Self = @This();
 
-    gpu: *Gpu,
+    context: *Context,
 
     render_pass: vk.RenderPass,
 
     pub fn new() Self {
         return Self{
-            .gpu = undefined,
+            .context = undefined,
 
             .render_pass = undefined,
         };
     }
 
-    pub fn init(self: *Self, gpu: *Gpu, swapchainImageFormat: vk.Format) !void {
-        self.gpu = gpu;
+    pub fn init(self: *Self, context: *Context, swapchainImageFormat: vk.Format) !void {
+        self.context = context;
 
         try self.createRenderPass(swapchainImageFormat);
     }
 
     pub fn deinit(self: Self) void {
-        vk.DestroyRenderPass(self.gpu.device, self.render_pass, null);
+        self.context.vkd.destroyRenderPass(self.context.device, self.render_pass, null);
     }
 
     fn createRenderPass(self: *Self, swapchainImageFormat: vk.Format) !void {
         const colorAttachments = [_]vk.AttachmentDescription{vk.AttachmentDescription{
             .format = swapchainImageFormat,
 
-            .samples = vk.SampleCountFlags{ .t1 = true },
+            .samples = vk.SampleCountFlags{ .@"1_bit" = true },
 
-            .loadOp = .CLEAR,
-            .storeOp = .STORE,
+            .load_op = .clear,
+            .store_op = .store,
 
-            .stencilLoadOp = .DONT_CARE,
-            .stencilStoreOp = .DONT_CARE,
+            .stencil_load_op = .dont_care,
+            .stencil_store_op = .dont_care,
 
-            .initialLayout = .UNDEFINED,
-            .finalLayout = .PRESENT_SRC_KHR,
+            .initial_layout = .@"undefined",
+            .final_layout = .present_src_khr,
+
+            .flags = .{},
         }};
 
         const colorAttachmentRefs = [_]vk.AttachmentReference{vk.AttachmentReference{
             .attachment = 0,
 
-            .layout = .COLOR_ATTACHMENT_OPTIMAL,
+            .layout = .color_attachment_optimal,
         }};
 
         const subpasses = [_]vk.SubpassDescription{vk.SubpassDescription{
-            .pipelineBindPoint = .GRAPHICS,
+            .pipeline_bind_point = .graphics,
 
-            .colorAttachmentCount = colorAttachmentRefs.len,
-            .pColorAttachments = &colorAttachmentRefs,
+            .input_attachment_count = 0,
+            .p_input_attachments = undefined,
+
+            .color_attachment_count = colorAttachmentRefs.len,
+            .p_color_attachments = &colorAttachmentRefs,
+
+            .preserve_attachment_count = 0,
+            .p_preserve_attachments = undefined,
+
+            .p_resolve_attachments = undefined,
+            .p_depth_stencil_attachment = undefined,
+
+            .flags = .{},
         }};
 
         const dependencies = [_]vk.SubpassDependency{vk.SubpassDependency{
-            .srcSubpass = vk.SUBPASS_EXTERNAL,
-            .srcStageMask = vk.PipelineStageFlags{ .colorAttachmentOutput = true },
-            .srcAccessMask = undefined,
+            .src_subpass = vk.SUBPASS_EXTERNAL,
+            .src_stage_mask = vk.PipelineStageFlags{ .color_attachment_output_bit = true },
+            .src_access_mask = undefined,
 
-            .dstSubpass = 0,
-            .dstStageMask = vk.PipelineStageFlags{ .colorAttachmentOutput = true },
-            .dstAccessMask = vk.AccessFlags{ .colorAttachmentWrite = true },
+            .dst_subpass = 0,
+            .dst_stage_mask = vk.PipelineStageFlags{ .color_attachment_output_bit = true },
+            .dst_access_mask = vk.AccessFlags{ .color_attachment_write_bit = true },
+
+            .dependency_flags = .{},
         }};
 
         const renderPassInfo = vk.RenderPassCreateInfo{
-            .attachmentCount = colorAttachments.len,
-            .pAttachments = &colorAttachments,
+            .attachment_count = colorAttachments.len,
+            .p_attachments = &colorAttachments,
 
-            .subpassCount = subpasses.len,
-            .pSubpasses = &subpasses,
+            .subpass_count = subpasses.len,
+            .p_subpasses = &subpasses,
 
-            .dependencyCount = dependencies.len,
-            .pDependencies = &dependencies,
+            .dependency_count = dependencies.len,
+            .p_dependencies = &dependencies,
+
+            .flags = .{},
         };
 
-        self.render_pass = try vk.CreateRenderPass(self.gpu.device, renderPassInfo, null);
+        self.render_pass = try self.context.vkd.createRenderPass(self.context.device, renderPassInfo, null);
     }
 };

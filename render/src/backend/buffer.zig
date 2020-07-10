@@ -2,7 +2,6 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const vk = @import("../include/vk.zig");
-const VK_SUCCESS = vk.Result.SUCCESS;
 
 const zva = @import("zva");
 
@@ -13,16 +12,16 @@ const shader = @import("shader.zig");
 const vkbackend = @import("backend.zig");
 const VulkanError = vkbackend.VulkanError;
 
-const Gpu = @import("gpu.zig").Gpu;
+const Context = @import("context.zig").Context;
 
 pub const Buffer = struct {
-    initFn: fn (self: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, gpu: *Gpu) anyerror!void,
+    initFn: fn (self: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *Context) anyerror!void,
     deinitFn: fn (self: *Buffer) void,
     bufferFn: fn (self: *Buffer) vk.Buffer,
     lenFn: fn (self: *Buffer) u32,
 
-    pub fn init(self: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, gpu: *Gpu) !void {
-        try self.initFn(self, allocator, vallocator, gpu);
+    pub fn init(self: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *Context) !void {
+        try self.initFn(self, allocator, vallocator, context);
     }
 
     pub fn deinit(self: *Buffer) void {
@@ -45,8 +44,8 @@ pub const Usage = enum {
 
 fn getVkUsage(usage: Usage) vk.BufferUsageFlags {
     return switch (usage) {
-        .Vertex => vk.BufferUsageFlags{ .vertexBuffer = true },
-        .Index => vk.BufferUsageFlags{ .indexBuffer = true },
+        .Vertex => vk.BufferUsageFlags{ .vertex_buffer_bit = true },
+        .Index => vk.BufferUsageFlags{ .index_buffer_bit = true },
     };
 }
 
@@ -60,7 +59,7 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
         allocator: *Allocator,
         vallocator: *zva.Allocator,
 
-        gpu: *Gpu,
+        context: *Context,
 
         buffer: vk.Buffer,
         allocation: zva.Allocation,
@@ -81,7 +80,7 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
                 .allocator = undefined,
                 .vallocator = undefined,
 
-                .gpu = undefined,
+                .context = undefined,
 
                 .buffer = undefined,
                 .allocation = undefined,
@@ -92,16 +91,16 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
             };
         }
 
-        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, gpu: *Gpu) anyerror!void {
+        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *Context) anyerror!void {
             const self = @fieldParentPtr(Self, "buf", buf);
 
             self.allocator = allocator;
             self.vallocator = vallocator;
 
-            self.gpu = gpu;
+            self.context = context;
 
-            const queueFamilyIndices = [_]u32{ gpu.indices.graphics_family.?, gpu.indices.transfer_family.? };
-            const differentFamilies = gpu.indices.graphics_family.? != gpu.indices.transfer_family.?;
+            const queueFamilyIndices = [_]u32{ context.indices.graphics_family.?, context.indices.transfer_family.? };
+            const differentFamilies = context.indices.graphics_family.? != context.indices.transfer_family.?;
 
             const bufferInfo = vk.BufferCreateInfo{
                 .size = self.size,
@@ -113,18 +112,18 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
                 .pQueueFamilyIndices = if (differentFamilies) &queueFamilyIndices else undefined,
             };
 
-            self.buffer = try vk.CreateBuffer(self.gpu.device, bufferInfo, null);
+            self.buffer = try vk.CreateBuffer(self.context.device, bufferInfo, null);
 
-            const memRequirements = vk.GetBufferMemoryRequirements(self.gpu.device, self.buffer);
+            const memRequirements = vk.GetBufferMemoryRequirements(self.context.device, self.buffer);
             self.allocation = try self.vallocator.alloc(memRequirements.size, memRequirements.alignment, memRequirements.memoryTypeBits, .CpuToGpu, .Buffer);
-            try vk.BindBufferMemory(self.gpu.device, self.buffer, self.allocation.memory, self.allocation.offset);
+            try vk.BindBufferMemory(self.context.device, self.buffer, self.allocation.memory, self.allocation.offset);
 
             std.mem.copy(T, std.mem.bytesAsSlice(T, self.allocation.data), self.data);
         }
 
         pub fn deinit(buf: *Buffer) void {
             const self = @fieldParentPtr(Self, "buf", buf);
-            vk.DestroyBuffer(self.gpu.device, self.buffer, null);
+            vk.DestroyBuffer(self.context.device, self.buffer, null);
         }
 
         pub fn update(self: *Self, data: []T) !void {
@@ -157,7 +156,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
         allocator: *Allocator,
         vallocator: *zva.Allocator,
 
-        gpu: *Gpu,
+        context: *Context,
 
         sbuffer: vk.Buffer,
         sallocation: zva.Allocation,
@@ -181,7 +180,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
                 .allocator = undefined,
                 .vallocator = undefined,
 
-                .gpu = undefined,
+                .context = undefined,
 
                 .sbuffer = undefined,
                 .sallocation = undefined,
@@ -195,57 +194,63 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
             };
         }
 
-        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, gpu: *Gpu) anyerror!void {
+        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *Context) anyerror!void {
             const self = @fieldParentPtr(Self, "buf", buf);
 
             self.allocator = allocator;
             self.vallocator = vallocator;
 
-            self.gpu = gpu;
+            self.context = context;
 
             const sBufferInfo = vk.BufferCreateInfo{
                 .size = self.size,
 
-                .usage = vk.BufferUsageFlags{ .transferSrc = true },
-                .sharingMode = .EXCLUSIVE,
+                .usage = vk.BufferUsageFlags{ .transfer_src_bit = true },
+                .sharing_mode = .exclusive,
+
+                .flags = .{},
+                .queue_family_index_count = 0,
+                .p_queue_family_indices = undefined,
             };
 
-            self.sbuffer = try vk.CreateBuffer(self.gpu.device, sBufferInfo, null);
+            self.sbuffer = try context.vkd.createBuffer(self.context.device, sBufferInfo, null);
 
-            const sMemRequirements = vk.GetBufferMemoryRequirements(self.gpu.device, self.sbuffer);
-            self.sallocation = try self.vallocator.alloc(sMemRequirements.size, sMemRequirements.alignment, sMemRequirements.memoryTypeBits, .CpuToGpu, .Buffer);
-            try vk.BindBufferMemory(self.gpu.device, self.sbuffer, self.sallocation.memory, self.sallocation.offset);
+            const sMemRequirements = context.vkd.getBufferMemoryRequirements(self.context.device, self.sbuffer);
+            self.sallocation = try self.vallocator.alloc(sMemRequirements.size, sMemRequirements.alignment, sMemRequirements.memory_type_bits, .CpuToGpu, .Buffer);
+            try context.vkd.bindBufferMemory(self.context.device, self.sbuffer, self.sallocation.memory, self.sallocation.offset);
 
             std.mem.copy(T, std.mem.bytesAsSlice(T, self.sallocation.data), self.data);
 
-            const queueFamilyIndices = [_]u32{ gpu.indices.graphics_family.?, gpu.indices.transfer_family.? };
-            const differentFamilies = gpu.indices.graphics_family.? != gpu.indices.transfer_family.?;
+            const queueFamilyIndices = [_]u32{ context.indices.graphics_family.?, context.indices.transfer_family.? };
+            const differentFamilies = context.indices.graphics_family.? != context.indices.transfer_family.?;
 
             const dBufferInfo = vk.BufferCreateInfo{
                 .size = self.size,
 
-                .usage = (vk.BufferUsageFlags{ .transferDst = true }).with(bUsage),
+                .usage = (vk.BufferUsageFlags{ .transfer_dst_bit = true }).merge(bUsage),
 
-                .sharingMode = if (differentFamilies) .CONCURRENT else .EXCLUSIVE,
-                .queueFamilyIndexCount = if (differentFamilies) 2 else 0,
-                .pQueueFamilyIndices = if (differentFamilies) &queueFamilyIndices else undefined,
+                .sharing_mode = if (differentFamilies) .concurrent else .exclusive,
+                .queue_family_index_count = if (differentFamilies) 2 else 0,
+                .p_queue_family_indices = if (differentFamilies) &queueFamilyIndices else undefined,
+
+                .flags = .{},
             };
 
-            self.dbuffer = try vk.CreateBuffer(self.gpu.device, dBufferInfo, null);
+            self.dbuffer = try context.vkd.createBuffer(self.context.device, dBufferInfo, null);
 
-            const dMemRequirements = vk.GetBufferMemoryRequirements(self.gpu.device, self.dbuffer);
-            self.dallocation = try self.vallocator.alloc(dMemRequirements.size, dMemRequirements.alignment, dMemRequirements.memoryTypeBits, .GpuOnly, .Buffer);
-            try vk.BindBufferMemory(self.gpu.device, self.dbuffer, self.dallocation.memory, self.dallocation.offset);
+            const dMemRequirements = context.vkd.getBufferMemoryRequirements(self.context.device, self.dbuffer);
+            self.dallocation = try self.vallocator.alloc(dMemRequirements.size, dMemRequirements.alignment, dMemRequirements.memory_type_bits, .GpuOnly, .Buffer);
+            try context.vkd.bindBufferMemory(self.context.device, self.dbuffer, self.dallocation.memory, self.dallocation.offset);
 
             try self.copyBuffer();
 
             self.vallocator.free(self.sallocation);
-            vk.DestroyBuffer(self.gpu.device, self.sbuffer, null);
+            context.vkd.destroyBuffer(self.context.device, self.sbuffer, null);
         }
 
         pub fn deinit(buf: *Buffer) void {
             const self = @fieldParentPtr(Self, "buf", buf);
-            vk.DestroyBuffer(self.gpu.device, self.dbuffer, null);
+            self.context.vkd.destroyBuffer(self.context.device, self.dbuffer, null);
         }
 
         pub fn update(self: *Self, data: []T) !void {
@@ -254,62 +259,75 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
             const sBufferInfo = vk.BufferCreateInfo{
                 .size = self.size,
 
-                .usage = vk.BufferUsageFlags{ .transferSrc = true },
-                .sharingMode = .EXCLUSIVE,
+                .usage = vk.BufferUsageFlags{ .transfer_src_bit = true },
+                .sharing_mode = .exclusive,
+
+                .flags = .{},
+                .queue_family_index_count = 0,
+                .p_queue_family_indices = undefined,
             };
 
-            self.sbuffer = try vk.CreateBuffer(self.gpu.device, sBufferInfo, null);
+            self.sbuffer = try self.context.vkd.createBuffer(self.context.device, sBufferInfo, null);
 
-            const sMemRequirements = vk.GetBufferMemoryRequirements(self.gpu.device, self.sbuffer);
-            self.sallocation = try self.vallocator.alloc(sMemRequirements.size, sMemRequirements.alignment, sMemRequirements.memoryTypeBits, .CpuToGpu, .Buffer);
-            try vk.BindBufferMemory(self.gpu.device, self.sbuffer, self.sallocation.memory, self.sallocation.offset);
+            const sMemRequirements = self.context.vkd.getBufferMemoryRequirements(self.context.device, self.sbuffer);
+            self.sallocation = try self.vallocator.alloc(sMemRequirements.size, sMemRequirements.alignment, sMemRequirements.memory_type_bits, .CpuToGpu, .Buffer);
+            try self.context.vkd.bindBufferMemory(self.context.device, self.sbuffer, self.sallocation.memory, self.sallocation.offset);
 
             std.mem.copy(T, std.mem.bytesAsSlice(T, self.sallocation.data), data);
 
             try self.copyBuffer();
 
             self.vallocator.free(self.sallocation);
-            vk.DestroyBuffer(self.gpu.device, self.sbuffer, null);
+            self.context.vkd.destroyBuffer(self.context.device, self.sbuffer, null);
         }
 
         pub fn copyBuffer(self: *Self) !void {
             const allocInfo = vk.CommandBufferAllocateInfo{
-                .level = .PRIMARY,
+                .level = .primary,
 
-                .commandPool = self.gpu.transfer_pool,
+                .command_pool = self.context.transfer_pool,
 
-                .commandBufferCount = 1,
+                .command_buffer_count = 1,
             };
 
             var commandBuffer: vk.CommandBuffer = undefined;
-            try vk.AllocateCommandBuffers(self.gpu.device, allocInfo, @ptrCast(*[1]vk.CommandBuffer, &commandBuffer));
+            try self.context.vkd.allocateCommandBuffers(self.context.device, allocInfo, @ptrCast([*]vk.CommandBuffer, &commandBuffer));
 
             const beginInfo = vk.CommandBufferBeginInfo{
-                .flags = vk.CommandBufferUsageFlags{ .oneTimeSubmit = true },
+                .flags = vk.CommandBufferUsageFlags{ .one_time_submit_bit = true },
+                .p_inheritance_info = undefined,
             };
 
-            try vk.BeginCommandBuffer(commandBuffer, beginInfo);
+            try self.context.vkd.beginCommandBuffer(commandBuffer, beginInfo);
 
             const copyRegions = [_]vk.BufferCopy{vk.BufferCopy{
-                .srcOffset = 0,
-                .dstOffset = 0,
+                .src_offset = 0,
+                .dst_offset = 0,
 
                 .size = self.size,
             }};
 
-            vk.CmdCopyBuffer(commandBuffer, self.sbuffer, self.dbuffer, &copyRegions);
+            self.context.vkd.cmdCopyBuffer(commandBuffer, self.sbuffer, self.dbuffer, copyRegions.len, &copyRegions);
 
-            try vk.EndCommandBuffer(commandBuffer);
+            try self.context.vkd.endCommandBuffer(commandBuffer);
 
             const submitInfos = [_]vk.SubmitInfo{vk.SubmitInfo{
-                .commandBufferCount = 1,
-                .pCommandBuffers = &[_]vk.CommandBuffer{commandBuffer},
+                .command_buffer_count = 1,
+                .p_command_buffers = &[_]vk.CommandBuffer{commandBuffer},
+                
+                .wait_semaphore_count = 0,
+                .p_wait_semaphores = undefined,
+
+                .signal_semaphore_count = 0,
+                .p_signal_semaphores = undefined,
+
+                .p_wait_dst_stage_mask = undefined,
             }};
 
-            try vk.QueueSubmit(self.gpu.transfer_queue, &submitInfos, .Null);
-            try vk.QueueWaitIdle(self.gpu.transfer_queue);
+            try self.context.vkd.queueSubmit(self.context.transfer_queue, submitInfos.len, &submitInfos, .null_handle);
+            try self.context.vkd.queueWaitIdle(self.context.transfer_queue);
 
-            vk.FreeCommandBuffers(self.gpu.device, self.gpu.transfer_pool, &[_]vk.CommandBuffer{commandBuffer});
+            self.context.vkd.freeCommandBuffers(self.context.device, self.context.transfer_pool, 1, &[_]vk.CommandBuffer{commandBuffer});
         }
 
         pub fn buffer(buf: *Buffer) vk.Buffer {

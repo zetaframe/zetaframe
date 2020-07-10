@@ -65,14 +65,14 @@ test "vulkan_backend" {
     try vbackend.init();
     defer vbackend.deinit();
 
-    try simple_material.init(std.heap.c_allocator, &vbackend.gpu, &vbackend.render_pass, &vbackend.swapchain);
+    try simple_material.init(std.heap.c_allocator, &vbackend.context, &vbackend.render_pass, &vbackend.swapchain);
     defer simple_material.deinit();
 
     var framebuffers = try std.heap.c_allocator.alloc(backend.Framebuffer, vbackend.swapchain.imageviews.len);
     defer std.heap.c_allocator.free(framebuffers);
 
     for (framebuffers) |*fb, i| {
-        fb.* = try backend.Framebuffer.init(&vbackend.gpu, &[_]backend.ImageView{vbackend.swapchain.imageviews[i]}, &vbackend.render_pass, &vbackend.swapchain);
+        fb.* = try backend.Framebuffer.init(&vbackend.context, &[_]backend.ImageView{vbackend.swapchain.imageviews[i]}, &vbackend.render_pass, &vbackend.swapchain);
     }
     defer {
         for (framebuffers) |framebuffer| {
@@ -80,7 +80,7 @@ test "vulkan_backend" {
         }
     }
 
-    try command.init(std.heap.c_allocator, &vbackend.vallocator, &vbackend.gpu, &vbackend.render_pass, &simple_material.pipeline, vbackend.swapchain.extent, framebuffers);
+    try command.init(std.heap.c_allocator, &vbackend.vallocator, &vbackend.context, &vbackend.render_pass, &simple_material.pipeline, vbackend.swapchain.extent, framebuffers);
     defer command.deinit();
 
     var timer = std.time.Timer.start() catch unreachable;

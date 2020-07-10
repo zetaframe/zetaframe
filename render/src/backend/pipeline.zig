@@ -8,9 +8,8 @@ const shader = @import("shader.zig");
 const VulkanError = @import("backend.zig").VulkanError;
 
 const vk = @import("../include/vk.zig");
-const VK_SUCCESS = vk.enum_VkResult.VK_SUCCESS;
 
-const Gpu = @import("gpu.zig").Gpu;
+const Context = @import("context.zig").Context;
 const Shader = @import("shader.zig").Shader;
 const RenderPass = @import("renderpass.zig").RenderPass;
 
@@ -46,17 +45,17 @@ pub const Pipeline = struct {
                         var format: vk.Format = undefined;
                         switch (@typeInfo(field.field_type).Struct.fields[0].field_type) {
                             f32 => switch (@typeInfo(field.field_type).Struct.fields.len) {
-                                1 => format = .R32_SFLOAT,
-                                2 => format = .R32G32_SFLOAT,
-                                3 => format = .R32G32B32_SFLOAT,
-                                4 => format = .R32G32B32A32_SFLOAT,
+                                1 => format = .r32_sfloat,
+                                2 => format = .r32g32_sfloat,
+                                3 => format = .r32g32b32_sfloat,
+                                4 => format = .r32g32b32a32_sfloat,
                                 else => @compileError("Invalid Type for Vertex Input"),
                             },
                             i32 => switch (@typeInfo(field.field_type).Struct.fields.len) {
-                                1 => format = .R32_SINT,
-                                2 => format = .R32G32_SINT,
-                                3 => format = .R32G32B32_SINT,
-                                4 => format = .R32G32B32A32_SINT,
+                                1 => format = .r32_sint,
+                                2 => format = .r32g32_sint,
+                                3 => format = .r32g32b32_sint,
+                                4 => format = .r32g32b32a32_sint,
                                 else => @compileError("Invalid Type for Vertex Input"),
                             },
                             else => @compileError("Invalid Type for Vertex Input"),
@@ -127,7 +126,7 @@ pub const Pipeline = struct {
 
     pipeline: vk.Pipeline,
 
-    gpu: *Gpu,
+    context: *Context,
 
     vert_shader: shader.Shader,
     vert_shader_module: vk.ShaderModule,
@@ -159,7 +158,7 @@ pub const Pipeline = struct {
 
             .pipeline = undefined,
 
-            .gpu = undefined,
+            .context = undefined,
 
             .vert_shader = vertShader,
             .vert_shader_module = undefined,
@@ -185,57 +184,61 @@ pub const Pipeline = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, gpu: *Gpu, renderPass: *RenderPass) !void {
+    pub fn init(self: *Self, allocator: *Allocator, context: *Context, renderPass: *RenderPass) !void {
         self.allocator = allocator;
 
-        self.gpu = gpu;
+        self.context = context;
 
         try self.createProgrammable();
         try self.createFixed();
 
         const pipelineLayoutInfo = vk.PipelineLayoutCreateInfo{
-            .setLayoutCount = 0,
-            .pSetLayouts = undefined,
+            .set_layout_count = 0,
+            .p_set_layouts = undefined,
 
-            .pushConstantRangeCount = 0,
-            .pPushConstantRanges = undefined,
+            .push_constant_range_count = 0,
+            .p_push_constant_ranges = undefined,
+
+            .flags = .{},
         };
 
-        self.pipeline_layout = try vk.CreatePipelineLayout(self.gpu.device, pipelineLayoutInfo, null);
+        self.pipeline_layout = try self.context.vkd.createPipelineLayout(self.context.device, pipelineLayoutInfo, null);
 
         const pipelineInfo = [_]vk.GraphicsPipelineCreateInfo{vk.GraphicsPipelineCreateInfo{
-            .stageCount = @intCast(u32, self.shader_stages.len),
-            .pStages = &self.shader_stages,
+            .stage_count = @intCast(u32, self.shader_stages.len),
+            .p_stages = &self.shader_stages,
 
-            .pTessellationState = null,
+            .p_tessellation_state = null,
 
-            .pVertexInputState = &self.vertex_input_info,
-            .pInputAssemblyState = &self.input_assembly_info,
-            .pViewportState = &self.viewport_info,
-            .pRasterizationState = &self.rasterizer_info,
-            .pMultisampleState = &self.multisampling_info,
-            .pDepthStencilState = null,
-            .pColorBlendState = &self.color_blend_info,
-            .pDynamicState = &self.dynamic_info,
+            .p_vertex_input_state = &self.vertex_input_info,
+            .p_input_assembly_state = &self.input_assembly_info,
+            .p_viewport_state = &self.viewport_info,
+            .p_rasterization_state = &self.rasterizer_info,
+            .p_multisample_state = &self.multisampling_info,
+            .p_depth_stencil_state = null,
+            .p_color_blend_state = &self.color_blend_info,
+            .p_dynamic_state = &self.dynamic_info,
 
             .layout = self.pipeline_layout,
 
-            .renderPass = renderPass.render_pass,
+            .render_pass = renderPass.render_pass,
             .subpass = 0,
 
-            .basePipelineHandle = .Null,
-            .basePipelineIndex = 0,
+            .base_pipeline_handle = .null_handle,
+            .base_pipeline_index = 0,
+
+            .flags = .{},
         }};
 
-        try vk.CreateGraphicsPipelines(self.gpu.device, .Null, &pipelineInfo, null, @ptrCast(*[1]vk.Pipeline, &self.pipeline));
+        _ = try self.context.vkd.createGraphicsPipelines(self.context.device, .null_handle, pipelineInfo.len, &pipelineInfo, null, @ptrCast(*[1]vk.Pipeline, &self.pipeline));
     }
 
     pub fn deinit(self: Self) void {
-        vk.DestroyPipeline(self.gpu.device, self.pipeline, null);
-        vk.DestroyPipelineLayout(self.gpu.device, self.pipeline_layout, null);
+        self.context.vkd.destroyPipeline(self.context.device, self.pipeline, null);
+        self.context.vkd.destroyPipelineLayout(self.context.device, self.pipeline_layout, null);
 
-        vk.DestroyShaderModule(self.gpu.device, self.vert_shader_module, null);
-        vk.DestroyShaderModule(self.gpu.device, self.fragment_shader_module, null);
+        self.context.vkd.destroyShaderModule(self.context.device, self.vert_shader_module, null);
+        self.context.vkd.destroyShaderModule(self.context.device, self.fragment_shader_module, null);
 
         self.vertex_binding_desciptions.deinit();
         self.vertex_attribute_desciptions.deinit();
@@ -243,29 +246,39 @@ pub const Pipeline = struct {
 
     fn createProgrammable(self: *Self) !void {
         const vertCreateInfo = vk.ShaderModuleCreateInfo{
-            .codeSize = self.vert_shader.shader_bytes.len,
-            .pCode = std.mem.bytesAsSlice(u32, self.vert_shader.shader_bytes).ptr,
+            .code_size = self.vert_shader.shader_bytes.len,
+            .p_code = std.mem.bytesAsSlice(u32, self.vert_shader.shader_bytes).ptr,
+
+            .flags = .{},
         };
 
-        self.vert_shader_module = try vk.CreateShaderModule(self.gpu.device, vertCreateInfo, null);
+        self.vert_shader_module = try self.context.vkd.createShaderModule(self.context.device, vertCreateInfo, null);
 
         self.vert_shader_stage_info = vk.PipelineShaderStageCreateInfo{
-            .stage = vk.ShaderStageFlags{ .vertex = true },
+            .stage = .{ .vertex_bit = true },
             .module = self.vert_shader_module,
-            .pName = "main",
+            .p_name = "main",
+
+            .flags = .{},
+            .p_specialization_info = null,
         };
 
         const fragCreateInfo = vk.ShaderModuleCreateInfo{
-            .codeSize = self.fragment_shader.shader_bytes.len,
-            .pCode = std.mem.bytesAsSlice(u32, self.fragment_shader.shader_bytes).ptr,
+            .code_size = self.fragment_shader.shader_bytes.len,
+            .p_code = std.mem.bytesAsSlice(u32, self.fragment_shader.shader_bytes).ptr,
+
+            .flags = .{},
         };
 
-        self.fragment_shader_module = try vk.CreateShaderModule(self.gpu.device, fragCreateInfo, null);
+        self.fragment_shader_module = try self.context.vkd.createShaderModule(self.context.device, fragCreateInfo, null);
 
         self.fragment_shader_stage_info = vk.PipelineShaderStageCreateInfo{
-            .stage = vk.ShaderStageFlags{ .fragment = true },
+            .stage = .{ .fragment_bit = true },
             .module = self.fragment_shader_module,
-            .pName = "main",
+            .p_name = "main",
+
+            .flags = .{},
+            .p_specialization_info = null,
         };
 
         self.shader_stages = [2]vk.PipelineShaderStageCreateInfo{ self.vert_shader_stage_info, self.fragment_shader_stage_info };
@@ -279,7 +292,7 @@ pub const Pipeline = struct {
             try self.vertex_binding_desciptions.append(vk.VertexInputBindingDescription{
                 .binding = self.settings.inputs[i].binding_description.binding,
                 .stride = self.settings.inputs[i].binding_description.stride,
-                .inputRate = .VERTEX,
+                .input_rate = .vertex,
             });
 
             for (self.settings.inputs[i].attribute_descriptions) |desc, j| {
@@ -293,96 +306,110 @@ pub const Pipeline = struct {
         }
 
         self.vertex_input_info = vk.PipelineVertexInputStateCreateInfo{
-            .vertexBindingDescriptionCount = @intCast(u32, self.vertex_binding_desciptions.items.len),
-            .pVertexBindingDescriptions = self.vertex_binding_desciptions.items.ptr,
+            .vertex_binding_description_count = @intCast(u32, self.vertex_binding_desciptions.items.len),
+            .p_vertex_binding_descriptions = self.vertex_binding_desciptions.items.ptr,
 
-            .vertexAttributeDescriptionCount = @intCast(u32, self.vertex_attribute_desciptions.items.len),
-            .pVertexAttributeDescriptions = self.vertex_attribute_desciptions.items.ptr,
+            .vertex_attribute_description_count = @intCast(u32, self.vertex_attribute_desciptions.items.len),
+            .p_vertex_attribute_descriptions = self.vertex_attribute_desciptions.items.ptr,
+
+            .flags = .{},
         };
 
         self.input_assembly_info = vk.PipelineInputAssemblyStateCreateInfo{
             .topology = @intToEnum(vk.PrimitiveTopology, @enumToInt(self.settings.assembly.topology)),
 
-            .primitiveRestartEnable = vk.FALSE,
+            .primitive_restart_enable = vk.FALSE,
+
+            .flags = .{},
         };
 
         self.viewport_info = vk.PipelineViewportStateCreateInfo{
-            .viewportCount = 1,
-            .pViewports = null,
+            .viewport_count = 1,
+            .p_viewports = null,
 
-            .scissorCount = 1,
-            .pScissors = null,
+            .scissor_count = 1,
+            .p_scissors = null,
+
+            .flags = .{},
         };
 
         self.rasterizer_info = vk.PipelineRasterizationStateCreateInfo{
-            .depthClampEnable = vk.FALSE,
+            .depth_clamp_enable = vk.FALSE,
 
-            .rasterizerDiscardEnable = vk.FALSE,
+            .rasterizer_discard_enable = vk.FALSE,
 
-            .polygonMode = .FILL,
+            .polygon_mode = .fill,
 
-            .lineWidth = 1.0,
+            .line_width = 1.0,
 
-            .cullMode = switch (self.settings.rasterizer.cull_mode) {
-                .Front => vk.CullModeFlags{ .front = true },
-                .Back => vk.CullModeFlags{ .back = true },
-                .Both => vk.CullModeFlags.frontAndBack,
-                .None => vk.CullModeFlags.none,
+            .cull_mode = switch (self.settings.rasterizer.cull_mode) {
+                .Front => .{ .front_bit = true },
+                .Back => .{ .back_bit = true },
+                .Both => .{ .front_bit = true, .back_bit = true },
+                .None => .{},
             },
-            .frontFace = switch (self.settings.rasterizer.front_face) {
-                .Clockwise => vk.FrontFace.CLOCKWISE,
-                .CounterClockwise => vk.FrontFace.COUNTER_CLOCKWISE,
+            .front_face = switch (self.settings.rasterizer.front_face) {
+                .Clockwise => .clockwise,
+                .CounterClockwise => .counter_clockwise,
             },
 
-            .depthBiasEnable = vk.FALSE,
-            .depthBiasConstantFactor = 0,
-            .depthBiasClamp = 0,
-            .depthBiasSlopeFactor = 0,
+            .depth_bias_enable = vk.FALSE,
+            .depth_bias_constant_factor = 0,
+            .depth_bias_clamp = 0,
+            .depth_bias_slope_factor = 0,
+
+            .flags = .{},
         };
 
         self.multisampling_info = vk.PipelineMultisampleStateCreateInfo{
-            .sampleShadingEnable = vk.FALSE,
+            .sample_shading_enable = vk.FALSE,
 
-            .rasterizationSamples = vk.SampleCountFlags{ .t1 = true },
+            .rasterization_samples = .{ .@"1_bit" = true },
 
-            .minSampleShading = 0,
-            .pSampleMask = null,
+            .min_sample_shading = 0,
+            .p_sample_mask = null,
 
-            .alphaToCoverageEnable = 0,
-            .alphaToOneEnable = 0,
+            .alpha_to_coverage_enable = 0,
+            .alpha_to_one_enable = 0,
+
+            .flags = .{},
         };
 
         const colorBlendAttachments = [_]vk.PipelineColorBlendAttachmentState{vk.PipelineColorBlendAttachmentState{
-            .colorWriteMask = vk.ColorComponentFlags{ .r = true, .g = true, .b = true, .a = true },
-            .blendEnable = vk.FALSE,
+            .color_write_mask = .{ .r_bit = true, .g_bit = true, .b_bit = true, .a_bit = true },
+            .blend_enable = vk.FALSE,
 
-            .srcColorBlendFactor = .ZERO,
-            .dstColorBlendFactor = .ZERO,
-            .colorBlendOp = .ADD,
+            .src_color_blend_factor = .zero,
+            .dst_color_blend_factor = .zero,
+            .color_blend_op = .add,
 
-            .srcAlphaBlendFactor = .ZERO,
-            .dstAlphaBlendFactor = .ZERO,
-            .alphaBlendOp = .ADD,
+            .src_alpha_blend_factor = .zero,
+            .dst_alpha_blend_factor = .zero,
+            .alpha_blend_op = .add,
         }};
 
         self.color_blend_info = vk.PipelineColorBlendStateCreateInfo{
-            .logicOpEnable = vk.FALSE,
-            .logicOp = .COPY,
+            .logic_op_enable = vk.FALSE,
+            .logic_op = .copy,
 
-            .attachmentCount = colorBlendAttachments.len,
-            .pAttachments = &colorBlendAttachments,
+            .attachment_count = colorBlendAttachments.len,
+            .p_attachments = &colorBlendAttachments,
 
-            .blendConstants = [_]f32{ 0, 0, 0, 0 },
+            .blend_constants = [_]f32{ 0, 0, 0, 0 },
+
+            .flags = .{},
         };
 
         const dynamicStates = [_]vk.DynamicState{
-            .VIEWPORT,
-            .SCISSOR,
+            .viewport,
+            .scissor,
         };
 
         self.dynamic_info = vk.PipelineDynamicStateCreateInfo{
-            .dynamicStateCount = dynamicStates.len,
-            .pDynamicStates = &dynamicStates,
+            .dynamic_state_count = dynamicStates.len,
+            .p_dynamic_states = &dynamicStates,
+
+            .flags = .{},
         };
     }
 };

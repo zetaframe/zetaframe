@@ -2,6 +2,7 @@ const std = @import("std");
 const Builder = std.build.Builder;
 
 const zf = @import("pkg.zig").Pkg(".");
+const vkgen = @import("render/lib/vulkan-zig/generator/index.zig");
 
 const Example = struct { name: []const u8, path: []const u8, libs: u3 };
 
@@ -55,4 +56,8 @@ pub fn build(b: *Builder) void {
 
         exe.install();
     }
+
+    const gen_vk_bindings = vkgen.VkGenerateStep.init(b, "render/lib/vk.xml", "render/src/include/vk.zig");
+    const gen_vk_step = b.step("generate-vk", "Generates vulkan bindings");
+    gen_vk_step.dependOn(&gen_vk_bindings.step);
 }

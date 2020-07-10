@@ -58,7 +58,7 @@ pub const Window = struct {
 
 //----- All Backends
 fn errorCallback(err: c_int, description: [*c]const u8) callconv(.C) void {
-    panic("Error: {}\n", .{description});
+    panic("Error: {}\n", .{std.mem.span(description)});
 }
 
 //----- Vulkan Specific

@@ -11,11 +11,10 @@ const VulkanError = vkbackend.VulkanError;
 const Swapchain = @import("swapchain.zig").Swapchain;
 
 const vk = @import("../include/vk.zig");
-const VK_SUCCESS = vk.Result.SUCCESS;
 
 const zva = @import("zva");
 
-const Gpu = @import("gpu.zig").Gpu;
+const Context = @import("context.zig").Context;
 const Buffer = @import("buffer.zig").Buffer;
 const Framebuffer = @import("framebuffer.zig").Framebuffer;
 const RenderPass = @import("renderpass.zig").RenderPass;
@@ -25,7 +24,7 @@ pub const Command = struct {
     const Self = @This();
     allocator: *Allocator,
 
-    gpu: *Gpu,
+    context: *Context,
 
     render_pass: *RenderPass,
     pipeline: *Pipeline,
@@ -40,7 +39,7 @@ pub const Command = struct {
         return Self{
             .allocator = undefined,
 
-            .gpu = undefined,
+            .context = undefined,
 
             .render_pass = undefined,
             .pipeline = undefined,
@@ -53,25 +52,25 @@ pub const Command = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, vallocator: *zva.Allocator, gpu: *Gpu, renderPass: *RenderPass, pipeline: *Pipeline, extent: vk.Extent2D, framebuffers: []Framebuffer) !void {
+    pub fn init(self: *Self, allocator: *Allocator, vallocator: *zva.Allocator, context: *Context, renderPass: *RenderPass, pipeline: *Pipeline, extent: vk.Extent2D, framebuffers: []Framebuffer) !void {
         self.allocator = allocator;
 
-        self.gpu = gpu;
+        self.context = context;
 
         self.render_pass = renderPass;
         self.pipeline = pipeline;
         self.framebuffers = framebuffers;
 
-        try self.vertex_buffer.init(self.allocator, vallocator, self.gpu);
-        try self.index_buffer.init(self.allocator, vallocator, self.gpu);
+        try self.vertex_buffer.init(self.allocator, vallocator, self.context);
+        try self.index_buffer.init(self.allocator, vallocator, self.context);
 
         try self.createCommandBuffers(renderPass, pipeline, extent, framebuffers);
     }
 
     pub fn deinit(self: Self) void {
-        vk.DeviceWaitIdle(self.gpu.device) catch unreachable;
+        self.context.vkd.deviceWaitIdle(self.context.device) catch unreachable;
 
-        vk.FreeCommandBuffers(self.gpu.device, self.gpu.graphics_pool, self.command_buffers);
+        self.context.vkd.freeCommandBuffers(self.context.device, self.context.graphics_pool, @intCast(u32, self.command_buffers.len), self.command_buffers.ptr);
         self.allocator.free(self.command_buffers);
 
         self.index_buffer.deinit();
@@ -82,40 +81,41 @@ pub const Command = struct {
         self.command_buffers = try self.allocator.alloc(vk.CommandBuffer, framebuffers.len);
 
         const allocInfo = vk.CommandBufferAllocateInfo{
-            .commandPool = self.gpu.graphics_pool,
+            .command_pool = self.context.graphics_pool,
 
-            .level = .PRIMARY,
+            .level = .primary,
 
-            .commandBufferCount = @intCast(u32, self.command_buffers.len),
+            .command_buffer_count = @intCast(u32, self.command_buffers.len),
         };
 
-        try vk.AllocateCommandBuffers(self.gpu.device, allocInfo, self.command_buffers);
+        try self.context.vkd.allocateCommandBuffers(self.context.device, allocInfo, self.command_buffers.ptr);
 
         for (self.command_buffers) |buffer, i| {
-            const beginInfo = vk.CommandBufferBeginInfo{};
+            const beginInfo = vk.CommandBufferBeginInfo{
+                .flags = .{},
+                .p_inheritance_info = null,
+            };
 
-            try vk.BeginCommandBuffer(self.command_buffers[i], beginInfo);
+            try self.context.vkd.beginCommandBuffer(self.command_buffers[i], beginInfo);
 
             const clearColors = [_]vk.ClearValue{vk.ClearValue{
                 .color = vk.ClearColorValue{
-                    .float32 = [_]f32{ 0.0, 0.0, 0.0, 1.0 },
+                    .float_32 = [_]f32{ 0.0, 0.0, 0.0, 1.0 },
                 },
             }};
 
             const renderPassInfo = vk.RenderPassBeginInfo{
-                .renderPass = renderPass.render_pass,
+                .render_pass = renderPass.render_pass,
 
                 .framebuffer = framebuffers[i].framebuffer,
 
-                .renderArea = vk.Rect2D{
+                .render_area = vk.Rect2D{
                     .offset = vk.Offset2D{ .x = 0, .y = 0 },
                     .extent = extent,
                 },
 
-                .clearValueCount = 1,
-                .pClearValues = &clearColors,
-
-                .pNext = null,
+                .clear_value_count = 1,
+                .p_clear_values = &clearColors,
             };
 
             const viewports = [_]vk.Viewport{vk.Viewport{
@@ -123,32 +123,32 @@ pub const Command = struct {
                 .y = 0.0,
                 .width = @intToFloat(f32, extent.width),
                 .height = @intToFloat(f32, extent.height),
-                .minDepth = 0.0,
-                .maxDepth = 1.0,
+                .min_depth = 0.0,
+                .max_depth = 1.0,
             }};
-            vk.CmdSetViewport(self.command_buffers[i], 0, &viewports);
+            self.context.vkd.cmdSetViewport(self.command_buffers[i], 0, viewports.len, &viewports);
 
             const scissors = [_]vk.Rect2D{vk.Rect2D{
                 .offset = vk.Offset2D{ .x = 0, .y = 0 },
                 .extent = extent,
             }};
-            vk.CmdSetScissor(self.command_buffers[i], 0, &scissors);
+            self.context.vkd.cmdSetScissor(self.command_buffers[i], 0, scissors.len, &scissors);
 
-            vk.CmdBeginRenderPass(self.command_buffers[i], renderPassInfo, .INLINE);
+            self.context.vkd.cmdBeginRenderPass(self.command_buffers[i], renderPassInfo, .@"inline");
             {
-                vk.CmdBindPipeline(self.command_buffers[i], .GRAPHICS, pipeline.pipeline);
+                self.context.vkd.cmdBindPipeline(self.command_buffers[i], .graphics, pipeline.pipeline);
 
                 const vertexBuffers = [_]vk.Buffer{self.vertex_buffer.buffer()};
                 const offsets = [_]u64{0};
 
-                vk.CmdBindVertexBuffers(self.command_buffers[i], 0, &vertexBuffers, &offsets);
-                vk.CmdBindIndexBuffer(self.command_buffers[i], self.index_buffer.buffer(), 0, .UINT16);
+                self.context.vkd.cmdBindVertexBuffers(self.command_buffers[i], 0, vertexBuffers.len, &vertexBuffers, &offsets);
+                self.context.vkd.cmdBindIndexBuffer(self.command_buffers[i], self.index_buffer.buffer(), 0, .uint16);
 
-                vk.CmdDrawIndexed(self.command_buffers[i], self.index_buffer.len(), 1, 0, 0, 0);
+                self.context.vkd.cmdDrawIndexed(self.command_buffers[i], self.index_buffer.len(), 1, 0, 0, 0);
             }
-            vk.CmdEndRenderPass(self.command_buffers[i]);
+            self.context.vkd.cmdEndRenderPass(self.command_buffers[i]);
 
-            try vk.EndCommandBuffer(self.command_buffers[i]);
+            try self.context.vkd.endCommandBuffer(self.command_buffers[i]);
         }
     }
 };
