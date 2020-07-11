@@ -126,7 +126,7 @@ pub const Pipeline = struct {
 
     pipeline: vk.Pipeline,
 
-    context: *Context,
+    context: *const Context,
 
     vert_shader: shader.Shader,
     vert_shader_module: vk.ShaderModule,
@@ -184,7 +184,7 @@ pub const Pipeline = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, context: *Context, renderPass: *RenderPass) !void {
+    pub fn init(self: *Self, allocator: *Allocator, context: *const Context, renderPass: *RenderPass) !void {
         self.allocator = allocator;
 
         self.context = context;

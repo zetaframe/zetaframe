@@ -24,7 +24,7 @@ pub const Swapchain = struct {
 
     swapchain: vk.SwapchainKHR,
 
-    context: *Context,
+    context: *const Context,
     window: *windowing.Window,
 
     swapchain_support: SwapchainSupportDetails,
@@ -32,8 +32,6 @@ pub const Swapchain = struct {
     imageviews: []vk.ImageView,
     image_format: vk.Format,
     extent: vk.Extent2D,
-
-    current_image_id: u32,
 
     pub fn new() Self {
         return Self{
@@ -49,12 +47,10 @@ pub const Swapchain = struct {
             .imageviews = undefined,
             .image_format = undefined,
             .extent = undefined,
-
-            .current_image_id = 0,
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, context: *Context, window: *windowing.Window) !void {
+    pub fn init(self: *Self, allocator: *Allocator, context: *const Context, window: *windowing.Window) !void {
         self.allocator = allocator;
 
         self.context = context;
@@ -215,7 +211,7 @@ const SwapchainSupportDetails = struct {
     }
 };
 
-pub fn querySwapchainSupport(allocator: *Allocator, context: *Context, pdevice: vk.PhysicalDevice, surface: vk.SurfaceKHR) !SwapchainSupportDetails {
+pub fn querySwapchainSupport(allocator: *Allocator, context: *const Context, pdevice: vk.PhysicalDevice, surface: vk.SurfaceKHR) !SwapchainSupportDetails {
     var details = SwapchainSupportDetails.init(allocator);
 
     details.capabilities = try context.vki.getPhysicalDeviceSurfaceCapabilitiesKHR(pdevice, surface);

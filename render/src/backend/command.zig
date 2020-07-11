@@ -24,7 +24,7 @@ pub const Command = struct {
     const Self = @This();
     allocator: *Allocator,
 
-    context: *Context,
+    context: *const Context,
 
     render_pass: *RenderPass,
     pipeline: *Pipeline,
@@ -52,7 +52,7 @@ pub const Command = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, vallocator: *zva.Allocator, context: *Context, renderPass: *RenderPass, pipeline: *Pipeline, extent: vk.Extent2D, framebuffers: []Framebuffer) !void {
+    pub fn init(self: *Self, allocator: *Allocator, vallocator: *zva.Allocator, context: *const Context, renderPass: *RenderPass, pipeline: *Pipeline, extent: vk.Extent2D, framebuffers: []Framebuffer) !void {
         self.allocator = allocator;
 
         self.context = context;

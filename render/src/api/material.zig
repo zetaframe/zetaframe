@@ -34,7 +34,7 @@ pub const Material = struct {
 
     description: Description,
 
-    context: *Context,
+    context: *const Context,
 
     pipeline: Pipeline,
 
@@ -50,7 +50,7 @@ pub const Material = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, context: *Context, renderPass: *RenderPass, swapchain: *Swapchain) !void {
+    pub fn init(self: *Self, allocator: *Allocator, context: *const Context, renderPass: *RenderPass, swapchain: *Swapchain) !void {
         self.allocator = allocator;
 
         self.context = context;

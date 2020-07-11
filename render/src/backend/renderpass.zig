@@ -16,7 +16,7 @@ const Context = @import("context.zig").Context;
 pub const RenderPass = struct {
     const Self = @This();
 
-    context: *Context,
+    context: *const Context,
 
     render_pass: vk.RenderPass,
 
@@ -28,7 +28,7 @@ pub const RenderPass = struct {
         };
     }
 
-    pub fn init(self: *Self, context: *Context, swapchainImageFormat: vk.Format) !void {
+    pub fn init(self: *Self, context: *const Context, swapchainImageFormat: vk.Format) !void {
         self.context = context;
 
         try self.createRenderPass(swapchainImageFormat);

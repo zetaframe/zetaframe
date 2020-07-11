@@ -15,9 +15,9 @@ pub const Framebuffer = struct {
 
     framebuffer: vk.Framebuffer,
 
-    context: *Context,
+    context: *const Context,
 
-    pub fn init(context: *Context, attachments: []vk.ImageView, renderPass: *RenderPass, swapchain: *Swapchain) !Self {
+    pub fn init(context: *const Context, attachments: []vk.ImageView, renderPass: *RenderPass, swapchain: *Swapchain) !Self {
         const framebufferInfo = vk.FramebufferCreateInfo{
             .render_pass = renderPass.render_pass,
 

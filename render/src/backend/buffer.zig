@@ -15,12 +15,12 @@ const VulkanError = vkbackend.VulkanError;
 const Context = @import("context.zig").Context;
 
 pub const Buffer = struct {
-    initFn: fn (self: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *Context) anyerror!void,
+    initFn: fn (self: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *const Context) anyerror!void,
     deinitFn: fn (self: *Buffer) void,
     bufferFn: fn (self: *Buffer) vk.Buffer,
     lenFn: fn (self: *Buffer) u32,
 
-    pub fn init(self: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *Context) !void {
+    pub fn init(self: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *const Context) !void {
         try self.initFn(self, allocator, vallocator, context);
     }
 
@@ -59,7 +59,7 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
         allocator: *Allocator,
         vallocator: *zva.Allocator,
 
-        context: *Context,
+        context: *const Context,
 
         buffer: vk.Buffer,
         allocation: zva.Allocation,
@@ -91,7 +91,7 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
             };
         }
 
-        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *Context) anyerror!void {
+        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *const Context) anyerror!void {
             const self = @fieldParentPtr(Self, "buf", buf);
 
             self.allocator = allocator;
@@ -156,7 +156,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
         allocator: *Allocator,
         vallocator: *zva.Allocator,
 
-        context: *Context,
+        context: *const Context,
 
         sbuffer: vk.Buffer,
         sallocation: zva.Allocation,
@@ -194,7 +194,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
             };
         }
 
-        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *Context) anyerror!void {
+        pub fn init(buf: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *const Context) anyerror!void {
             const self = @fieldParentPtr(Self, "buf", buf);
 
             self.allocator = allocator;
