@@ -37,8 +37,8 @@ pub fn build(b: *Builder) void {
     test_no_render_step.dependOn(&math_test.step);
 
     const examples = [_]Example{
-        .{ .name = "simple", .path = "examples/simple.zig", .libs = 0b110 },
-        .{ .name = "render", .path = "examples/render/render.zig", .libs = 0b111 },
+        .{ .name = "simple-core", .path = "examples/simple-core/main.zig", .libs = 0b110 },
+        .{ .name = "simple-render", .path = "examples/simple-render/main.zig", .libs = 0b111 },
     };
 
     for (examples) |ex| {

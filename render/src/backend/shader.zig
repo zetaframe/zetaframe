@@ -4,20 +4,28 @@ pub const Shader = struct {
     const Self = @This();
     allocator: *std.mem.Allocator,
 
-    shader_code: []const u8,
-    shader_bytes: []align(@alignOf(u32)) const u8,
+    from_file: bool,
+    shader_bytes: [:0]align(@alignOf(u32)) const u8,
 
     pub fn init(allocator: *std.mem.Allocator, filepath: []const u8) !Self {
         return Self{
             .allocator = allocator,
 
-            .shader_code = try std.fs.cwd().readFileAlloc(allocator, filepath, std.math.maxInt(u32)),
-            .shader_bytes = try std.fs.cwd().readFileAllocOptions(allocator, filepath, std.math.maxInt(u32), @alignOf(u32), null),
+            .from_file = true,
+            .shader_bytes = try std.fs.cwd().readFileAllocOptions(allocator, filepath, std.math.maxInt(u32), @alignOf(u32), 0),
+        };
+    }
+
+    pub fn initData(data: [:0]align(@alignOf(u32)) const u8) !Self {
+        return Self{
+            .allocator = undefined,
+
+            .from_file = false,
+            .shader_bytes = data,
         };
     }
 
     pub fn deinit(self: Self) void {
-        self.allocator.free(self.shader_code);
-        self.allocator.free(self.shader_bytes);
+        if (self.from_file) self.allocator.free(self.shader_bytes);
     }
 };

@@ -2,6 +2,9 @@ const std = @import("std");
 const zm = @import("zetamath");
 usingnamespace @import("zetarender");
 
+const vert_shader = @alignCast(@alignOf(u32), @embedFile("shaders/vert.spv"));
+const frag_shader = @alignCast(@alignOf(u32), @embedFile("shaders/frag.spv"));
+
 pub fn main() !void {
     const UniformBufferObject = packed struct {
         model: zm.Mat44f,
@@ -25,8 +28,8 @@ pub fn main() !void {
 
     var simple_material = api.Material.new(.{
         .shaders = .{
-            .vertex = try backend.Shader.init(std.heap.c_allocator, "examples/render/shaders/vert.spv"),
-            .fragment = try backend.Shader.init(std.heap.c_allocator, "examples/render/shaders/frag.spv"),
+            .vertex = try backend.Shader.initData(vert_shader),
+            .fragment = try backend.Shader.initData(frag_shader),
         },
     }, .{
         .inputs = &[_]backend.Pipeline.Settings.Input{

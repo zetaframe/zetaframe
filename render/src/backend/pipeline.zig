@@ -247,7 +247,7 @@ pub const Pipeline = struct {
     fn createProgrammable(self: *Self) !void {
         const vertCreateInfo = vk.ShaderModuleCreateInfo{
             .code_size = self.vert_shader.shader_bytes.len,
-            .p_code = std.mem.bytesAsSlice(u32, self.vert_shader.shader_bytes).ptr,
+            .p_code = @ptrCast([*]const u32, self.vert_shader.shader_bytes),
 
             .flags = .{},
         };
@@ -265,7 +265,7 @@ pub const Pipeline = struct {
 
         const fragCreateInfo = vk.ShaderModuleCreateInfo{
             .code_size = self.fragment_shader.shader_bytes.len,
-            .p_code = std.mem.bytesAsSlice(u32, self.fragment_shader.shader_bytes).ptr,
+            .p_code = @ptrCast([*]const u32, self.fragment_shader.shader_bytes),
 
             .flags = .{},
         };
