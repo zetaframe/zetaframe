@@ -2,28 +2,67 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
-const shader = @import("shader.zig");
+const Shader = @import("shader.zig").Shader;
 
 const vkbackend = @import("backend.zig");
 const VulkanError = vkbackend.VulkanError;
 
 const vk = @import("../include/vk.zig");
-const VK_SUCCESS = vk.Result.SUCCESS;
 
 const zva = @import("zva");
 
-const Gpu = @import("gpu.zig").Gpu;
+const Context = @import("context.zig").Context;
 const Buffer = @import("buffer.zig").Buffer;
 
 pub const Uniform = struct {
     const Self = @This();
+    allocator: *Allocator,
+    vallocator: *zva.Allocator,
 
-    pub fn new(comptime T: type, allocator: *Allocator) Self {
+    context: *const Context,
+
+    layout_binding: vk.DescriptorSetLayoutBinding,
+    layout: vk.DescriptorSetLayout,
+
+    pub fn new(comptime T: type, binding: u32, stage: Shader.Stage) Self {
         return Self{
             .allocator = undefined,
             .vallocator = undefined,
 
-            .gpu = undefined,
+            .context = undefined,
+
+            .layout_binding = .{
+                .binding = binding,
+                .descriptor_type = .uniform_buffer,
+                .descriptor_count = 1,
+
+                .stage_flags = switch (stage) {
+                    .Vertex => .{ .vertex_bit = true },
+                    .Fragment => .{ .fragment_bit = true },
+                },
+                .p_immutable_samplers = null,
+            },
+            .layout = undefined,
         };
+    }
+
+    pub fn init(self: *Self, allocator: *Allocator, vallocator: *zva.Allocator, context: *const Context) !void {
+        self.allocator = allocator;
+        self.vallocator = vallocator;
+
+        self.context = context;
+
+        const layoutInfo = vk.DescriptorSetLayoutCreateInfo{
+            .binding_count = 1,
+            .p_bindings = @ptrCast([*]const vk.DescriptorSetLayoutBinding, &self.layout_binding),
+
+            .flags = .{},
+        };
+
+        self.layout = try self.context.vkd.createDescriptorSetLayout(context.device, layoutInfo, null);
+    }
+
+    pub fn deinit(self: Self) void {
+        self.context.vkd.destroyDescriptorSetLayout(self.context.device, self.layout, null);
     }
 };
