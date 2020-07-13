@@ -4,7 +4,7 @@ const math = std.math;
 
 // Common Functions
 /// Convert degrees to radians
-pub fn deg2rad(deg: var) @TypeOf(deg) {
+pub fn deg2rad(deg: anytype) @TypeOf(deg) {
     comptime const Type = @TypeOf(deg);
     if (comptime trait.is(.Float)(Type) or comptime trait.is(.ComptimeFloat)(Type)) {
         return deg * (math.pi / 180.0);
@@ -14,7 +14,7 @@ pub fn deg2rad(deg: var) @TypeOf(deg) {
 }
 
 /// Convert radians to degrees
-pub fn rad2deg(rad: var) @TypeOf(rad) {
+pub fn rad2deg(rad: anytype) @TypeOf(rad) {
     comptime const Type = @TypeOf(rad);
     if (comptime trait.is(.Float)(Type) or comptime trait.is(.ComptimeFloat)(Type)) {
         return rad * (180.0 / math.pi);
