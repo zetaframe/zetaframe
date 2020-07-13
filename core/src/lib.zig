@@ -12,7 +12,7 @@ const trait = std.meta.trait;
 const builtin = @import("builtin");
 
 /// ECS Schema with the IdType and all component types
-pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
+pub fn Schema(comptime IdType: type, comptime CompTypes: anytype) type {
     if (comptime !trait.isUnsignedInt(IdType)) {
         @compileError("Id type '" ++ @typeName(IdType) ++ "' must be an unsigned int.");
     }
@@ -113,7 +113,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             ///     @as(HealthComponent, health),
             ///     @as(PositionComponent, position),
             ///}
-            pub fn createEntity(self: *Self, components: var) !Entity {
+            pub fn createEntity(self: *Self, components: anytype) !Entity {
                 const T = @TypeOf(components);
 
                 var entity: Entity = undefined;
@@ -165,7 +165,7 @@ pub fn Schema(comptime IdType: type, comptime CompTypes: var) type {
             ///     @as([]HealthComponent, &healths),
             ///     @as([]PositionComponent, &positions),
             ///}
-            pub fn createEntities(self: *Self, components: var) !void {
+            pub fn createEntities(self: *Self, components: anytype) !void {
                 const T = @TypeOf(components);
 
                 var i: IdType = 0;
@@ -482,7 +482,7 @@ pub const MultiVecStore = struct {
 
     /// Initialize the MultiVecStore with a capacity
     /// The capacity is all types * the capacity
-    pub fn initCapacity(comptime Types: var, capacity: usize, allocator: *Allocator) !Self {
+    pub fn initCapacity(comptime Types: anytype, capacity: usize, allocator: *Allocator) !Self {
         var len: usize = 0;
         inline for (Types) |T| {
             len += @sizeOf(T) * capacity;
