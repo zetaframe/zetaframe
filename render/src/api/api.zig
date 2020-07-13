@@ -18,7 +18,7 @@ pub const Api = struct {
     backend: Backend,
 
     pub fn new(allocator: *Allocator, window: *windowing.Window) Self {
-        var backend = vbackend.Backend.new(allocator, window, vbackend.Swapchain.new(), vbackend.RenderPass.new());
+        var backend = vbackend.Backend.new(allocator, window, vbackend.Swapchain.new(), vbackend.RenderPass.new(), .{ .in_flight_frames = 2 });
 
         return Self{
             .allocator = allocator,
@@ -35,6 +35,7 @@ pub const Api = struct {
 
     pub fn deinit(self: *Self) void {
         var backend_ptr = &self.backend;
+        @ptrCast(*Backend, backend_ptr).deinitFrames();
         @ptrCast(*Backend, backend_ptr).deinit();
     }
 };

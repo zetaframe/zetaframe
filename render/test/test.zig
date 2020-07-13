@@ -4,13 +4,17 @@ usingnamespace @import("zetarender");
 const std = @import("std");
 
 test "vulkan_backend" {
-    std.debug.warn("\n", .{});
+    std.debug.print("\n", .{});
+
+    var allocator = std.heap.c_allocator;
 
     const UniformBufferObject = packed struct {
         model: zm.Mat44f,
         view: zm.Mat44f,
         proj: zm.Mat44f,
     };
+
+    var uniform = backend.Uniform.new(UniformBufferObject, 0, .Vertex);
 
     const Vertex = packed struct {
         const Self = @This();
@@ -52,46 +56,35 @@ test "vulkan_backend" {
     var vertex2 = Vertex.new(zm.Vec2f.new(0.5, -0.5), zm.Vec3f.new(0.0, 1.0, 0.0));
     var vertex3 = Vertex.new(zm.Vec2f.new(0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 1.0));
     var vertex4 = Vertex.new(zm.Vec2f.new(-0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 0.0));
-    var vertexBuffer = backend.buffer.StagedBuffer(Vertex, .Vertex).new(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
+    var vertexBuffer = backend.buffer.DirectBuffer(Vertex, .Vertex).new(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
 
     var indices = [_]u16{ 0, 1, 2, 2, 3, 0 };
     var indexBuffer = backend.buffer.StagedBuffer(u16, .Index).new(&indices);
 
     var swapchain = backend.Swapchain.new();
     var renderPass = backend.RenderPass.new();
-    var command = backend.Command.new(&vertexBuffer.buf, &indexBuffer.buf);
 
-    var vbackend = backend.Backend.new(std.heap.c_allocator, &testWindow, swapchain, renderPass);
+    var vbackend = backend.Backend.new(allocator, &testWindow, swapchain, renderPass, .{ .in_flight_frames = 2 });
     try vbackend.init();
     defer vbackend.deinit();
 
-    try simple_material.init(std.heap.c_allocator, &vbackend.context, &vbackend.render_pass, &vbackend.swapchain);
+    try uniform.init(allocator, &vbackend.vallocator, &vbackend.context);
+    defer uniform.deinit();
+
+    try simple_material.init(allocator, &vbackend.context, &vbackend.render_pass, &vbackend.swapchain);
     defer simple_material.deinit();
 
-    var framebuffers = try std.heap.c_allocator.alloc(backend.Framebuffer, vbackend.swapchain.images.len);
-    defer std.heap.c_allocator.free(framebuffers);
+    var command0 = backend.command.IndexedDrawCommandBuffer.new(&vertexBuffer.buf, &indexBuffer.buf, &simple_material.pipeline, &vbackend.render_pass);
+    try command0.command.init(allocator, &vbackend.vallocator, &vbackend.context);
+    defer command0.command.deinit();
 
-    for (framebuffers) |*fb, i| {
-        fb.* = try backend.Framebuffer.init(&vbackend.context, &[_]backend.ImageView{vbackend.swapchain.images[i].view}, &vbackend.render_pass, &vbackend.swapchain);
-    }
-    defer {
-        for (framebuffers) |framebuffer| {
-            framebuffer.deinit();
-        }
-    }
-
-    try command.init(std.heap.c_allocator, &vbackend.vallocator, &vbackend.context, &vbackend.render_pass, &simple_material.pipeline, vbackend.swapchain.extent, framebuffers);
-    defer command.deinit();
+    defer vbackend.deinitFrames();
 
     var timer = std.time.Timer.start() catch unreachable;
     var counter: f32 = 0;
     while (testWindow.isRunning()) {
+        counter += 0.01;
         timer.reset();
-
-        counter += 0.001;
-        if (counter > 4) {
-            break;
-        }
 
         testWindow.update();
 
@@ -106,12 +99,16 @@ test "vulkan_backend" {
 
         try vertexBuffer.update(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
 
-        try vbackend.submit(&command);
+        try vbackend.present(&command0.command);
+
+        try vbackend.vallocator.gc();
+
+        if (counter >= 4) break;
     }
 }
 
 test "api" {
-    std.debug.warn("\n", .{});
+    std.debug.print("\n", .{});
 
     const UniformBufferObject = packed struct {
         model: zm.Mat44f,
