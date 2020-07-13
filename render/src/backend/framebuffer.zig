@@ -12,10 +12,10 @@ const RenderPass = @import("renderpass.zig").RenderPass;
 
 pub const Framebuffer = struct {
     const Self = @This();
+    context: *const Context,
 
     framebuffer: vk.Framebuffer,
-
-    context: *const Context,
+    size: vk.Extent2D,
 
     pub fn init(context: *const Context, attachments: []vk.ImageView, renderPass: *RenderPass, swapchain: *Swapchain) !Self {
         const framebufferInfo = vk.FramebufferCreateInfo{
@@ -24,8 +24,8 @@ pub const Framebuffer = struct {
             .attachment_count = @intCast(u32, attachments.len),
             .p_attachments = attachments.ptr,
 
-            .width = @intCast(u32, swapchain.extent.width),
-            .height = @intCast(u32, swapchain.extent.height),
+            .width = swapchain.extent.width,
+            .height = swapchain.extent.height,
 
             .layers = 1,
 
@@ -35,9 +35,10 @@ pub const Framebuffer = struct {
         const framebuffer = try context.vkd.createFramebuffer(context.device, framebufferInfo, null);
 
         return Self{
-            .framebuffer = framebuffer,
-
             .context = context,
+
+            .framebuffer = framebuffer,
+            .size = vk.Extent2D{ .width = swapchain.extent.width, .height = swapchain.extent.height },
         };
     }
 

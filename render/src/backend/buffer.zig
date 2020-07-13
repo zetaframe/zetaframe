@@ -20,12 +20,17 @@ pub const Buffer = struct {
     bufferFn: fn (self: *Buffer) vk.Buffer,
     lenFn: fn (self: *Buffer) u32,
 
+    is_inited: bool = false,
+
     pub fn init(self: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *const Context) !void {
-        try self.initFn(self, allocator, vallocator, context);
+        if (!self.is_inited) try self.initFn(self, allocator, vallocator, context);
+
+        self.is_inited = true;
     }
 
     pub fn deinit(self: *Buffer) void {
         self.deinitFn(self);
+        self.is_inited = false;
     }
 
     pub fn buffer(self: *Buffer) vk.Buffer {
@@ -107,23 +112,26 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
 
                 .usage = bUsage,
 
-                .sharingMode = if (differentFamilies) .CONCURRENT else .EXCLUSIVE,
-                .queueFamilyIndexCount = if (differentFamilies) 2 else 0,
-                .pQueueFamilyIndices = if (differentFamilies) &queueFamilyIndices else undefined,
+                .sharing_mode = if (differentFamilies) .concurrent else .exclusive,
+                .queue_family_index_count = if (differentFamilies) 2 else 0,
+                .p_queue_family_indices = if (differentFamilies) &queueFamilyIndices else undefined,
+
+                .flags = .{},
             };
 
-            self.buffer = try vk.CreateBuffer(self.context.device, bufferInfo, null);
+            self.buffer = try context.vkd.createBuffer(self.context.device, bufferInfo, null);
 
-            const memRequirements = vk.GetBufferMemoryRequirements(self.context.device, self.buffer);
-            self.allocation = try self.vallocator.alloc(memRequirements.size, memRequirements.alignment, memRequirements.memoryTypeBits, .CpuToGpu, .Buffer);
-            try vk.BindBufferMemory(self.context.device, self.buffer, self.allocation.memory, self.allocation.offset);
+            const memRequirements = context.vkd.getBufferMemoryRequirements(self.context.device, self.buffer);
+            self.allocation = try self.vallocator.alloc(memRequirements.size, memRequirements.alignment, memRequirements.memory_type_bits, .CpuToGpu, .Buffer);
+            try context.vkd.bindBufferMemory(self.context.device, self.buffer, self.allocation.memory, self.allocation.offset);
 
             std.mem.copy(T, std.mem.bytesAsSlice(T, self.allocation.data), self.data);
         }
 
         pub fn deinit(buf: *Buffer) void {
             const self = @fieldParentPtr(Self, "buf", buf);
-            vk.DestroyBuffer(self.context.device, self.buffer, null);
+            self.context.vkd.destroyBuffer(self.context.device, self.buffer, null);
+            self.vallocator.free(self.allocation);
         }
 
         pub fn update(self: *Self, data: []T) !void {
@@ -251,6 +259,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
         pub fn deinit(buf: *Buffer) void {
             const self = @fieldParentPtr(Self, "buf", buf);
             self.context.vkd.destroyBuffer(self.context.device, self.dbuffer, null);
+            self.vallocator.free(self.dallocation);
         }
 
         pub fn update(self: *Self, data: []T) !void {

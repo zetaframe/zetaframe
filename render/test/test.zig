@@ -28,8 +28,8 @@ test "vulkan_backend" {
 
     var simple_material = api.Material.new(.{
         .shaders = .{
-            .vertex = try backend.Shader.init(std.heap.c_allocator, "render/test/shaders/vert.spv"),
-            .fragment = try backend.Shader.init(std.heap.c_allocator, "render/test/shaders/frag.spv"),
+            .vertex = try backend.Shader.init(std.heap.c_allocator, "render/test/shaders/vert.spv", .Vertex),
+            .fragment = try backend.Shader.init(std.heap.c_allocator, "render/test/shaders/frag.spv", .Fragment),
         },
     }, .{
         .inputs = &[_]backend.Pipeline.Settings.Input{
@@ -68,11 +68,11 @@ test "vulkan_backend" {
     try simple_material.init(std.heap.c_allocator, &vbackend.context, &vbackend.render_pass, &vbackend.swapchain);
     defer simple_material.deinit();
 
-    var framebuffers = try std.heap.c_allocator.alloc(backend.Framebuffer, vbackend.swapchain.imageviews.len);
+    var framebuffers = try std.heap.c_allocator.alloc(backend.Framebuffer, vbackend.swapchain.images.len);
     defer std.heap.c_allocator.free(framebuffers);
 
     for (framebuffers) |*fb, i| {
-        fb.* = try backend.Framebuffer.init(&vbackend.context, &[_]backend.ImageView{vbackend.swapchain.imageviews[i]}, &vbackend.render_pass, &vbackend.swapchain);
+        fb.* = try backend.Framebuffer.init(&vbackend.context, &[_]backend.ImageView{vbackend.swapchain.images[i].view}, &vbackend.render_pass, &vbackend.swapchain);
     }
     defer {
         for (framebuffers) |framebuffer| {
@@ -107,8 +107,6 @@ test "vulkan_backend" {
         try vertexBuffer.update(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
 
         try vbackend.submit(&command);
-
-        std.log.info(.tests, "fps: {d}\n", .{1 / (@intToFloat(f64, timer.lap()) / 1000000000)});
     }
 }
 
@@ -137,8 +135,8 @@ test "api" {
 
     var simple_material = api.Material.new(.{
         .shaders = .{
-            .vertex = try backend.Shader.init(std.heap.c_allocator, "render/test/shaders/vert.spv"),
-            .fragment = try backend.Shader.init(std.heap.c_allocator, "render/test/shaders/frag.spv"),
+            .vertex = try backend.Shader.init(std.heap.c_allocator, "render/test/shaders/vert.spv", .Vertex),
+            .fragment = try backend.Shader.init(std.heap.c_allocator, "render/test/shaders/frag.spv", .Fragment),
         },
     }, .{
         .inputs = &[_]backend.Pipeline.Settings.Input{

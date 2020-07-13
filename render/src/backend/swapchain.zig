@@ -25,11 +25,6 @@ pub const Swapchain = struct {
         image: vk.Image,
         view: vk.ImageView,
 
-        acquired: vk.Semaphore,
-        presented: vk.Semaphore,
-
-        fence: vk.Fence,
-
         fn init(context: *const Context, image: vk.Image, format: vk.Format) !Image {
             const view = try context.vkd.createImageView(context.device, .{
                 .image = image,
@@ -54,38 +49,16 @@ pub const Swapchain = struct {
             }, null);
             errdefer context.vkd.destroyImageView(context.device, view, null);
 
-            const acquired = try context.vkd.createSemaphore(context.device, .{ .flags = .{} }, null);
-            errdefer context.vkd.destroySemaphore(context.device, acquired, null);
-
-            const presented = try context.vkd.createSemaphore(context.device, .{ .flags = .{} }, null);
-            errdefer context.vkd.destroySemaphore(context.device, presented, null);
-
-            const fence = try context.vkd.createFence(context.device, .{ .flags = .{ .signaled_bit = true } }, null);
-            errdefer context.vkd.destroyFence(context.device, fence, null);
-
             return Image{
                 .context = context,
 
                 .image = image,
                 .view = view,
-
-                .acquired = acquired,
-                .presented = presented,
-
-                .fence = fence,
             };
         }
 
         fn deinit(self: Image) void {
-            self.waitForFence() catch unreachable;
-            self.context.vkd.destroyFence(self.context.device, self.fence, null);
-            self.context.vkd.destroySemaphore(self.context.device, self.presented, null);
-            self.context.vkd.destroySemaphore(self.context.device, self.acquired, null);
             self.context.vkd.destroyImageView(self.context.device, self.view, null);
-        }
-
-        pub fn waitForFence(self: Image) !void {
-            _ = try self.context.vkd.waitForFences(self.context.device, 1, @ptrCast([*]const vk.Fence, &self.fence), vk.TRUE, std.math.maxInt(u64));
         }
     };
 
@@ -120,7 +93,7 @@ pub const Swapchain = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, context: *const Context, window: *windowing.Window) !vk.Semaphore {
+    pub fn init(self: *Self, allocator: *Allocator, context: *const Context, window: *windowing.Window) !void {
         self.allocator = allocator;
 
         self.context = context;
@@ -128,28 +101,12 @@ pub const Swapchain = struct {
 
         try self.createSwapchain(.null_handle);
         try self.createImages();
-
-        var acquiredNext = try context.vkd.createSemaphore(context.device, .{ .flags = .{} }, null);
-        errdefer context.vkd.destroySemaphore(context.device, acquiredNext, null);
-
-        if (context.vkd.acquireNextImageKHR(context.device, self.swapchain, std.math.maxInt(u64), acquiredNext, .null_handle)) |result| {
-            std.mem.swap(vk.Semaphore, &self.images[result.image_index].acquired, &acquiredNext);
-            return acquiredNext;
-        } else |err| return VulkanError.AcquireImageFailed;
     }
 
-    pub fn recreate(self: *Self) !vk.Semaphore {
+    pub fn recreate(self: *Self) !void {
         self.deinitNoSwapchain();
         try self.createSwapchain(self.swapchain);
         try self.createImages();
-
-        var acquiredNext = try self.context.vkd.createSemaphore(self.context.device, .{ .flags = .{} }, null);
-        errdefer self.context.vkd.destroySemaphore(self.context.device, acquiredNext, null);
-
-        if (self.context.vkd.acquireNextImageKHR(self.context.device, self.swapchain, std.math.maxInt(u64), acquiredNext, .null_handle)) |result| {
-            std.mem.swap(vk.Semaphore, &self.images[result.image_index].acquired, &acquiredNext);
-            return acquiredNext;
-        } else |err| return VulkanError.AcquireImageFailed;
     }
 
     fn deinitNoSwapchain(self: *Self) void {
@@ -187,7 +144,10 @@ pub const Swapchain = struct {
         };
 
         if (self.context.vkd.queuePresentKHR(self.context.present_queue, presentInfo)) |result| {
-            return false;
+            switch (result) {
+                .suboptimal_khr => return true,
+                else => return false,
+            }
         } else |err| switch (err) {
             error.OutOfDateKHR => return true,
             else => return VulkanError.PresentFailed,

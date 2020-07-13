@@ -148,7 +148,7 @@ pub const Pipeline = struct {
     color_blend_info: vk.PipelineColorBlendStateCreateInfo,
     dynamic_info: vk.PipelineDynamicStateCreateInfo,
 
-    pipeline_layout: vk.PipelineLayout,
+    layout: vk.PipelineLayout,
 
     pub fn new(settings: Settings, vertShader: Shader, fragShader: Shader) Self {
         return Self{
@@ -180,7 +180,7 @@ pub const Pipeline = struct {
             .color_blend_info = undefined,
             .dynamic_info = undefined,
 
-            .pipeline_layout = undefined,
+            .layout = undefined,
         };
     }
 
@@ -202,7 +202,7 @@ pub const Pipeline = struct {
             .flags = .{},
         };
 
-        self.pipeline_layout = try self.context.vkd.createPipelineLayout(self.context.device, pipelineLayoutInfo, null);
+        self.layout = try self.context.vkd.createPipelineLayout(self.context.device, pipelineLayoutInfo, null);
 
         const pipelineInfo = [_]vk.GraphicsPipelineCreateInfo{vk.GraphicsPipelineCreateInfo{
             .stage_count = @intCast(u32, self.shader_stages.len),
@@ -219,7 +219,7 @@ pub const Pipeline = struct {
             .p_color_blend_state = &self.color_blend_info,
             .p_dynamic_state = &self.dynamic_info,
 
-            .layout = self.pipeline_layout,
+            .layout = self.layout,
 
             .render_pass = renderPass.render_pass,
             .subpass = 0,
@@ -235,7 +235,7 @@ pub const Pipeline = struct {
 
     pub fn deinit(self: Self) void {
         self.context.vkd.destroyPipeline(self.context.device, self.pipeline, null);
-        self.context.vkd.destroyPipelineLayout(self.context.device, self.pipeline_layout, null);
+        self.context.vkd.destroyPipelineLayout(self.context.device, self.layout, null);
 
         self.context.vkd.destroyShaderModule(self.context.device, self.vert_shader_module, null);
         self.context.vkd.destroyShaderModule(self.context.device, self.fragment_shader_module, null);

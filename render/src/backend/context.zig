@@ -48,7 +48,7 @@ const DeviceDispatch = struct {
     vkDestroyDevice: vk.PfnDestroyDevice,
     vkGetDeviceQueue: vk.PfnGetDeviceQueue,
     vkDeviceWaitIdle: vk.PfnDeviceWaitIdle,
-    
+
     vkCreateSemaphore: vk.PfnCreateSemaphore,
     vkDestroySemaphore: vk.PfnDestroySemaphore,
 
@@ -103,6 +103,9 @@ const DeviceDispatch = struct {
     vkDestroyBuffer: vk.PfnDestroyBuffer,
     vkGetBufferMemoryRequirements: vk.PfnGetBufferMemoryRequirements,
     vkBindBufferMemory: vk.PfnBindBufferMemory,
+
+    vkCreateDescriptorSetLayout: vk.PfnCreateDescriptorSetLayout,
+    vkDestroyDescriptorSetLayout: vk.PfnDestroyDescriptorSetLayout,
 
     vkCmdBeginRenderPass: vk.PfnCmdBeginRenderPass,
     vkCmdEndRenderPass: vk.PfnCmdEndRenderPass,
@@ -282,7 +285,7 @@ pub const Context = struct {
                 .queue_family_index = queueFamily,
                 .queue_count = 1,
                 .p_queue_priorities = &[_]f32{queuePriority},
-                
+
                 .flags = .{},
             };
             try queueCreateInfos.append(queueCreateInfo);
@@ -312,7 +315,10 @@ pub const Context = struct {
         const poolInfo = vk.CommandPoolCreateInfo{
             .queue_family_index = indices.graphics_family.?,
 
-            .flags = .{},
+            .flags = .{
+                .transient_bit = true,
+                .reset_command_buffer_bit = true,
+            },
         };
 
         self.graphics_pool = try self.vkd.createCommandPool(self.device, poolInfo, null);
