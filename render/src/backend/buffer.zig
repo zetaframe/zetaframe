@@ -2,15 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const vk = @import("../include/vk.zig");
-
 const zva = @import("zva");
-
-const windowing = @import("../windowing.zig");
-
-const shader = @import("shader.zig");
-
-const vkbackend = @import("backend.zig");
-const VulkanError = vkbackend.VulkanError;
 
 const Context = @import("context.zig").Context;
 
@@ -45,12 +37,16 @@ pub const Buffer = struct {
 pub const Usage = enum {
     Vertex,
     Index,
+    Storage,
+    Uniform,
 };
 
 fn getVkUsage(usage: Usage) vk.BufferUsageFlags {
     return switch (usage) {
         .Vertex => vk.BufferUsageFlags{ .vertex_buffer_bit = true },
         .Index => vk.BufferUsageFlags{ .index_buffer_bit = true },
+        .Storage => vk.BufferUsageFlags{ .storage_buffer_bit = true },
+        .Uniform => vk.BufferUsageFlags{ .uniform_buffer_bit = true },
     };
 }
 

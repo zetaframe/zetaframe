@@ -1,15 +1,12 @@
 const std = @import("std");
-
 const Allocator = std.mem.Allocator;
 
 const vk = @import("../include/vk.zig");
-
 const glfw = @import("../include/glfw.zig");
 
 const windowing = @import("../windowing.zig");
 const shader = @import("shader.zig");
-const vkbackend = @import("backend.zig");
-const VulkanError = vkbackend.VulkanError;
+const BackendError = @import("backend.zig").BackendError;
 
 const enableValidationLayers = std.debug.runtime_safety;
 const validationLayers = [_][*:0]const u8{"VK_LAYER_LUNARG_standard_validation"};
@@ -192,7 +189,7 @@ pub const Context = struct {
     // Creates the vulkan instance
     fn createInstance(self: *Self) !void {
         // Check validation layer support if enabled
-        if (enableValidationLayers and !(try checkValidationLayerSupport(self.vkb, self.allocator))) return VulkanError.ValidationLayersNotAvailable;
+        if (enableValidationLayers and !(try checkValidationLayerSupport(self.vkb, self.allocator))) return BackendError.ValidationLayersNotAvailable;
 
         const appInfo = vk.ApplicationInfo{
             .p_application_name = self.window.name,
@@ -219,7 +216,7 @@ pub const Context = struct {
 
     fn createSurface(self: *Self) !void {
         if (glfw.glfwCreateWindowSurface(self.instance, self.window.window, null, &self.surface) != vk.Result.success) {
-            return VulkanError.CreateSurfaceFailed;
+            return BackendError.CreateSurfaceFailed;
         }
     }
 
@@ -228,7 +225,7 @@ pub const Context = struct {
         var deviceCount: u32 = 0;
         _ = try self.vki.enumeratePhysicalDevices(self.instance, &deviceCount, null);
 
-        if (deviceCount == 0) return VulkanError.NoValidDevices;
+        if (deviceCount == 0) return BackendError.NoValidDevices;
 
         const devices = try self.allocator.alloc(vk.PhysicalDevice, deviceCount);
         defer self.allocator.free(devices);
@@ -248,7 +245,7 @@ pub const Context = struct {
             }
         }
 
-        if (!deviceSelected) return VulkanError.NoValidDevices;
+        if (!deviceSelected) return BackendError.NoValidDevices;
 
         self.physical_device = selectedDevice;
 

@@ -1,19 +1,3 @@
-const std = @import("std");
-const Allocator = std.mem.Allocator;
-
-const testing = std.testing;
-const panic = std.debug.panic;
-
-const vk = @import("../include/vk.zig");
-const glfw = @import("../include/glfw.zig");
-const zva = @import("zva");
-
-const windowing = @import("../windowing.zig");
-const shader = @import("shader.zig");
-
-const Framebuffer = @import("framebuffer.zig").Framebuffer;
-const ImageView = vk.ImageView;
-
 // Re-exports
 pub const Shader = @import("shader.zig").Shader;
 pub const Context = @import("context.zig").Context;
@@ -26,7 +10,18 @@ pub const buffer = @import("buffer.zig");
 pub const Program = @import("program.zig").Program;
 pub const Uniform = @import("uniform.zig").Uniform;
 
-pub const VulkanError = error{
+const std = @import("std");
+const Allocator = std.mem.Allocator;
+
+const vk = @import("../include/vk.zig");
+const zva = @import("zva");
+
+const windowing = @import("../windowing.zig");
+
+const Framebuffer = @import("framebuffer.zig").Framebuffer;
+const ImageView = vk.ImageView;
+
+pub const BackendError = error{
     NoValidDevices,
     ValidationLayersNotAvailable,
     CreateSurfaceFailed,
@@ -60,7 +55,6 @@ pub const Backend = struct {
     frames: []Frame,
     frame_index: u32 = 0,
 
-    /// Create a new vulkan renderer backend with specified render core
     pub fn new(allocator: *Allocator, window: *windowing.Window, swapchain: Swapchain, renderPass: RenderPass, settings: Settings) Self {
         return Self{
             .settings = settings,

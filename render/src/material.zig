@@ -2,28 +2,26 @@ const std = @import("std");
 const trait = std.meta.trait;
 const Allocator = std.mem.Allocator;
 
-const shader = @import("../backend/shader.zig");
+const Shader = @import("backend/shader.zig").Shader;
 
-const vkbackend = @import("../backend/backend.zig");
+const vkbackend = @import("backend/backend.zig");
 const VulkanError = vkbackend.VulkanError;
 
-const vk = @import("../include/vk.zig");
+const vk = @import("include/vk.zig");
 
-const vma = @import("../include/vma.zig");
-
-const Context = @import("../backend/context.zig").Context;
-const Buffer = @import("../backend/buffer.zig").Buffer;
-const Swapchain = @import("../backend/swapchain.zig").Swapchain;
-const RenderPass = @import("../backend/renderpass.zig").RenderPass;
-const Pipeline = @import("../backend/pipeline.zig").Pipeline;
+const Context = @import("backend/context.zig").Context;
+const Buffer = @import("backend/buffer.zig").Buffer;
+const Swapchain = @import("backend/swapchain.zig").Swapchain;
+const RenderPass = @import("backend/renderpass.zig").RenderPass;
+const Pipeline = @import("backend/pipeline.zig").Pipeline;
 
 /// Defines the pipeline and shaders of a material
 /// Use material instance to get an instance of this material
 pub const Material = struct {
     pub const Description = struct {
         pub const Shaders = struct {
-            vertex: vkbackend.Shader,
-            fragment: vkbackend.Shader,
+            vertex: Shader,
+            fragment: Shader,
         };
 
         shaders: Shaders,
@@ -46,7 +44,7 @@ pub const Material = struct {
 
             .context = undefined,
 
-            .pipeline = Pipeline.new(pipelineSettings, description.shaders.vertex, description.shaders.fragment),
+            .pipeline = Pipeline.new(pipelineSettings),
         };
     }
 
@@ -55,7 +53,10 @@ pub const Material = struct {
 
         self.context = context;
 
-        try self.pipeline.init(allocator, context, renderPass);
+        try self.pipeline.init(allocator, context);
+        try self.pipeline.addShader(self.description.shaders.vertex);
+        try self.pipeline.addShader(self.description.shaders.fragment);
+        try self.pipeline.createPipeline(renderPass);
     }
 
     pub fn deinit(self: Self) void {

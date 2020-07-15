@@ -1,22 +1,15 @@
 const std = @import("std");
-
 const Allocator = std.mem.Allocator;
 
 const vk = @import("../include/vk.zig");
-
 const glfw = @import("../include/glfw.zig");
 
 const windowing = @import("../windowing.zig");
 
-const shader = @import("shader.zig");
-
-const vkbackend = @import("backend.zig");
-const VulkanError = vkbackend.VulkanError;
+const BackendError = @import("backend.zig").BackendError;
 
 const Context = @import("context.zig").Context;
 const RenderPass = @import("renderpass.zig").RenderPass;
-const GraphicsPipeline = @import("pipeline.zig").GraphicsPipeline;
-const Command = @import("command.zig").Command;
 
 pub const Swapchain = struct {
     const Image = struct {
@@ -126,7 +119,7 @@ pub const Swapchain = struct {
             return false;
         } else |err| switch (err) {
             error.OutOfDateKHR => return true,
-            else => return VulkanError.AcquireImageFailed,
+            else => return BackendError.AcquireImageFailed,
         }
     }
 
@@ -150,7 +143,7 @@ pub const Swapchain = struct {
             }
         } else |err| switch (err) {
             error.OutOfDateKHR => return true,
-            else => return VulkanError.PresentFailed,
+            else => return BackendError.PresentFailed,
         }
     }
 

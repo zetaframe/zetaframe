@@ -3,9 +3,6 @@ const Allocator = std.mem.Allocator;
 
 const vk = @import("../include/vk.zig");
 
-const vkbackend = @import("backend.zig");
-const VulkanError = vkbackend.VulkanError;
-
 const Context = @import("context.zig").Context;
 const Swapchain = @import("swapchain.zig").Swapchain;
 const RenderPass = @import("renderpass.zig").RenderPass;

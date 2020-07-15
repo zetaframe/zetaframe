@@ -1,13 +1,5 @@
 const std = @import("std");
-
 const Allocator = std.mem.Allocator;
-
-const windowing = @import("../windowing.zig");
-
-const shader = @import("shader.zig");
-
-const vkbackend = @import("backend.zig");
-const VulkanError = vkbackend.VulkanError;
 
 const vk = @import("../include/vk.zig");
 

@@ -1,14 +1,9 @@
 const std = @import("std");
-
 const Allocator = std.mem.Allocator;
 
 const Shader = @import("shader.zig").Shader;
 
-const vkbackend = @import("backend.zig");
-const VulkanError = vkbackend.VulkanError;
-
 const vk = @import("../include/vk.zig");
-
 const zva = @import("zva");
 
 const Context = @import("context.zig").Context;
@@ -24,7 +19,7 @@ pub const Uniform = struct {
     layout_binding: vk.DescriptorSetLayoutBinding,
     layout: vk.DescriptorSetLayout,
 
-    pub fn new(comptime T: type, binding: u32, stage: Shader.Stage) Self {
+    pub fn new(comptime T: type, binding: u32, stage: vk.ShaderStageFlags) Self {
         return Self{
             .allocator = undefined,
             .vallocator = undefined,
@@ -36,10 +31,7 @@ pub const Uniform = struct {
                 .descriptor_type = .uniform_buffer,
                 .descriptor_count = 1,
 
-                .stage_flags = switch (stage) {
-                    .Vertex => .{ .vertex_bit = true },
-                    .Fragment => .{ .fragment_bit = true },
-                },
+                .stage_flags = stage,
                 .p_immutable_samplers = null,
             },
             .layout = undefined,

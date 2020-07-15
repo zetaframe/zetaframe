@@ -2,10 +2,6 @@ const std = @import("std");
 const trait = std.meta.trait;
 const Allocator = std.mem.Allocator;
 
-const windowing = @import("../windowing.zig");
-
-const VulkanError = @import("backend.zig").VulkanError;
-
 const vk = @import("../include/vk.zig");
 
 const Context = @import("context.zig").Context;
