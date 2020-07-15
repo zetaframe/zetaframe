@@ -4,7 +4,6 @@ const Allocator = std.mem.Allocator;
 
 const windowing = @import("../windowing.zig");
 
-const shader = @import("shader.zig");
 const VulkanError = @import("backend.zig").VulkanError;
 
 const vk = @import("../include/vk.zig");
@@ -128,15 +127,8 @@ pub const Pipeline = struct {
 
     context: *const Context,
 
-    vert_shader: shader.Shader,
-    vert_shader_module: vk.ShaderModule,
-    vert_shader_stage_info: vk.PipelineShaderStageCreateInfo,
-
-    fragment_shader: shader.Shader,
-    fragment_shader_module: vk.ShaderModule,
-    fragment_shader_stage_info: vk.PipelineShaderStageCreateInfo,
-
-    shader_stages: [2]vk.PipelineShaderStageCreateInfo,
+    shader_modules: std.ArrayList(vk.ShaderModule),
+    shader_stage_infos: std.ArrayList(vk.PipelineShaderStageCreateInfo),
 
     vertex_binding_desciptions: std.ArrayList(vk.VertexInputBindingDescription),
     vertex_attribute_desciptions: std.ArrayList(vk.VertexInputAttributeDescription),
@@ -150,7 +142,7 @@ pub const Pipeline = struct {
 
     layout: vk.PipelineLayout,
 
-    pub fn new(settings: Settings, vertShader: Shader, fragShader: Shader) Self {
+    pub fn new(settings: Settings) Self {
         return Self{
             .allocator = undefined,
 
@@ -160,15 +152,8 @@ pub const Pipeline = struct {
 
             .context = undefined,
 
-            .vert_shader = vertShader,
-            .vert_shader_module = undefined,
-            .vert_shader_stage_info = undefined,
-
-            .fragment_shader = fragShader,
-            .fragment_shader_module = undefined,
-            .fragment_shader_stage_info = undefined,
-
-            .shader_stages = undefined,
+            .shader_modules = undefined,
+            .shader_stage_infos = undefined,
 
             .vertex_binding_desciptions = undefined,
             .vertex_attribute_desciptions = undefined,
@@ -184,14 +169,31 @@ pub const Pipeline = struct {
         };
     }
 
-    pub fn init(self: *Self, allocator: *Allocator, context: *const Context, renderPass: *RenderPass) !void {
+    pub fn init(self: *Self, allocator: *Allocator, context: *const Context) !void {
         self.allocator = allocator;
 
         self.context = context;
 
-        try self.createProgrammable();
         try self.createFixed();
 
+        self.shader_modules = std.ArrayList(vk.ShaderModule).init(allocator);
+        self.shader_stage_infos = std.ArrayList(vk.PipelineShaderStageCreateInfo).init(allocator);
+    }
+
+    pub fn deinit(self: Self) void {
+        self.context.vkd.destroyPipeline(self.context.device, self.pipeline, null);
+        self.context.vkd.destroyPipelineLayout(self.context.device, self.layout, null);
+
+        for (self.shader_modules.items) |module| self.context.vkd.destroyShaderModule(self.context.device, module, null);
+
+        self.shader_stage_infos.deinit();
+        self.shader_modules.deinit();
+
+        self.vertex_binding_desciptions.deinit();
+        self.vertex_attribute_desciptions.deinit();
+    }
+
+    pub fn createPipeline(self: *Self, renderPass: *RenderPass) !void {
         const pipelineLayoutInfo = vk.PipelineLayoutCreateInfo{
             .set_layout_count = 0,
             .p_set_layouts = undefined,
@@ -205,8 +207,8 @@ pub const Pipeline = struct {
         self.layout = try self.context.vkd.createPipelineLayout(self.context.device, pipelineLayoutInfo, null);
 
         const pipelineInfo = [_]vk.GraphicsPipelineCreateInfo{vk.GraphicsPipelineCreateInfo{
-            .stage_count = @intCast(u32, self.shader_stages.len),
-            .p_stages = &self.shader_stages,
+            .stage_count = @intCast(u32, self.shader_stage_infos.items.len),
+            .p_stages = @ptrCast([*]const vk.PipelineShaderStageCreateInfo, self.shader_stage_infos.items),
 
             .p_tessellation_state = null,
 
@@ -233,55 +235,24 @@ pub const Pipeline = struct {
         _ = try self.context.vkd.createGraphicsPipelines(self.context.device, .null_handle, pipelineInfo.len, &pipelineInfo, null, @ptrCast(*[1]vk.Pipeline, &self.pipeline));
     }
 
-    pub fn deinit(self: Self) void {
-        self.context.vkd.destroyPipeline(self.context.device, self.pipeline, null);
-        self.context.vkd.destroyPipelineLayout(self.context.device, self.layout, null);
-
-        self.context.vkd.destroyShaderModule(self.context.device, self.vert_shader_module, null);
-        self.context.vkd.destroyShaderModule(self.context.device, self.fragment_shader_module, null);
-
-        self.vertex_binding_desciptions.deinit();
-        self.vertex_attribute_desciptions.deinit();
-    }
-
-    fn createProgrammable(self: *Self) !void {
-        const vertCreateInfo = vk.ShaderModuleCreateInfo{
-            .code_size = self.vert_shader.shader_bytes.len,
-            .p_code = @ptrCast([*]const u32, self.vert_shader.shader_bytes),
+    pub fn addShader(self: *Self, shader: Shader) !void {
+        const createInfo = vk.ShaderModuleCreateInfo{
+            .code_size = shader.bytes.len,
+            .p_code = @ptrCast([*]const u32, shader.bytes),
 
             .flags = .{},
         };
 
-        self.vert_shader_module = try self.context.vkd.createShaderModule(self.context.device, vertCreateInfo, null);
+        try self.shader_modules.append(try self.context.vkd.createShaderModule(self.context.device, createInfo, null));
 
-        self.vert_shader_stage_info = vk.PipelineShaderStageCreateInfo{
-            .stage = .{ .vertex_bit = true },
-            .module = self.vert_shader_module,
+        try self.shader_stage_infos.append(vk.PipelineShaderStageCreateInfo{
+            .stage = shader.refl.stage,
+            .module = self.shader_modules.items[self.shader_modules.items.len - 1],
             .p_name = "main",
 
             .flags = .{},
             .p_specialization_info = null,
-        };
-
-        const fragCreateInfo = vk.ShaderModuleCreateInfo{
-            .code_size = self.fragment_shader.shader_bytes.len,
-            .p_code = @ptrCast([*]const u32, self.fragment_shader.shader_bytes),
-
-            .flags = .{},
-        };
-
-        self.fragment_shader_module = try self.context.vkd.createShaderModule(self.context.device, fragCreateInfo, null);
-
-        self.fragment_shader_stage_info = vk.PipelineShaderStageCreateInfo{
-            .stage = .{ .fragment_bit = true },
-            .module = self.fragment_shader_module,
-            .p_name = "main",
-
-            .flags = .{},
-            .p_specialization_info = null,
-        };
-
-        self.shader_stages = [2]vk.PipelineShaderStageCreateInfo{ self.vert_shader_stage_info, self.fragment_shader_stage_info };
+        });
     }
 
     fn createFixed(self: *Self) !void {

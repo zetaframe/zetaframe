@@ -11,6 +11,9 @@ const zva = @import("zva");
 const windowing = @import("../windowing.zig");
 const shader = @import("shader.zig");
 
+const Framebuffer = @import("framebuffer.zig").Framebuffer;
+const ImageView = vk.ImageView;
+
 // Re-exports
 pub const Shader = @import("shader.zig").Shader;
 pub const Context = @import("context.zig").Context;
@@ -20,8 +23,7 @@ pub const Swapchain = @import("swapchain.zig").Swapchain;
 pub const command = @import("command.zig");
 pub const CommandBuffer = command.CommandBuffer;
 pub const buffer = @import("buffer.zig");
-pub const Framebuffer = @import("framebuffer.zig").Framebuffer;
-pub const ImageView = vk.ImageView;
+pub const Program = @import("program.zig").Program;
 pub const Uniform = @import("uniform.zig").Uniform;
 
 pub const VulkanError = error{
