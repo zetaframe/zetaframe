@@ -19,7 +19,10 @@ pub fn Pkg(zf_path: comptime []const u8) type {
         pub const renderpkg = Package{
             .name = "zetarender",
             .path = zf_path ++ "/render/src/lib.zig",
-            .dependencies = &[_]Package{mathpkg, zva.pkg},
+            .dependencies = &[_]Package{
+                mathpkg,
+                zva.pkg,
+            },
         };
 
         pub const Module = enum {
