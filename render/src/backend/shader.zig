@@ -3,25 +3,42 @@ const std = @import("std");
 const vk = @import("../include/vk.zig");
 const spv = @import("../include/spirv.zig");
 
+const BackendError = @import("backend.zig").BackendError;
+
 pub const Shader = struct {
     const Reflection = struct {
         const DescriptorSet = struct {
-            set: u32,
-            binding: u32,
+            const Binding = struct {
+                binding: u32,
 
-            kind: vk.DescriptorType,
+                kind: vk.DescriptorType,
+            };
+
+            bindings: std.ArrayList(Binding),
         };
 
         stage: vk.ShaderStageFlags,
 
-        descriptor_sets: []DescriptorSet,
+        descriptor_sets: [3]DescriptorSet,
 
         local_size_x: u32,
         local_size_y: u32,
         local_size_z: u32,
 
-        fn deinit(self: Reflection, allocator: *std.mem.Allocator) void {
-            allocator.free(self.descriptor_sets);
+        fn init(allocator: *std.mem.Allocator) Reflection {
+            var refl: Shader.Reflection = undefined;
+
+            for (refl.descriptor_sets) |*set| {
+                set.bindings = std.ArrayList(DescriptorSet.Binding).init(allocator);
+            }
+
+            return refl;
+        }
+
+        fn deinit(self: Reflection) void {
+            for (self.descriptor_sets) |set| {
+                set.bindings.deinit();
+            }
         }
     };
 
@@ -59,15 +76,14 @@ pub const Shader = struct {
 
     pub fn deinit(self: Self) void {
         if (self.from_file) self.allocator.free(self.bytes);
-        self.refl.deinit(self.allocator);
+        self.refl.deinit();
     }
 };
 
 fn parse(allocator: *std.mem.Allocator, code: []const u32) !Shader.Reflection {
-    if (code[0] != spv.SpvMagicNumber) return error.InvalidShader;
+    if (code[0] != spv.SpvMagicNumber) return BackendError.InvalidShader;
 
-    var refl: Shader.Reflection = undefined;
-    var descriptorSets = std.ArrayList(Shader.Reflection.DescriptorSet).init(allocator);
+    var refl = Shader.Reflection.init(allocator);
 
     const Id = struct {
         opcode: u16,
@@ -86,56 +102,54 @@ fn parse(allocator: *std.mem.Allocator, code: []const u32) !Shader.Reflection {
 
         switch (opcode) {
             spv.SpvOpEntryPoint => {
-                if (wordCount < 2) return error.InvalidShader;
+                if (wordCount < 2) return BackendError.InvalidShader;
                 refl.stage = switch (code[i + 1]) {
                     spv.SpvExecutionModelVertex => vk.ShaderStageFlags{ .vertex_bit = true },
                     spv.SpvExecutionModelFragment => vk.ShaderStageFlags{ .fragment_bit = true },
                     spv.SpvExecutionModelGLCompute => vk.ShaderStageFlags{ .compute_bit = true },
-                    else => return error.InvalidShader,
+                    else => return BackendError.InvalidShader,
                 };
             },
             spv.SpvOpExecutionMode => {
-                if (wordCount < 3) return error.InvalidShader;
+                if (wordCount < 3) return BackendError.InvalidShader;
                 if (code[i + 2] == spv.SpvExecutionModeLocalSize) {
-                    if (wordCount < 6) return error.InvalidShader;
+                    if (wordCount < 6) return BackendError.InvalidShader;
                     refl.local_size_x = code[i + 3];
                     refl.local_size_y = code[i + 4];
                     refl.local_size_z = code[i + 5];
                 }
             },
             spv.SpvOpDecorate => {
-                if (wordCount < 3) return error.InvalidShader;
+                if (wordCount < 3) return BackendError.InvalidShader;
 
                 switch (code[i + 2]) {
                     spv.SpvDecorationDescriptorSet => {
-                        if (wordCount < 4) return error.InvalidShader;
+                        if (wordCount < 4) return BackendError.InvalidShader;
                         ids[code[i + 1]].set = code[i + 3];
                     },
                     spv.SpvDecorationBinding => {
-                        if (wordCount < 4) return error.InvalidShader;
+                        if (wordCount < 4) return BackendError.InvalidShader;
                         ids[code[i + 1]].binding = code[i + 3];
                     },
                     else => {},
                 }
             },
             spv.SpvOpTypePointer => {
-                if (wordCount < 4) return error.InvalidShader;
+                if (wordCount < 4) return BackendError.InvalidShader;
 
                 ids[code[i + 1]].opcode = opcode;
                 ids[code[i + 1]].id = code[i + 3];
                 ids[code[i + 1]].class = code[i + 2];
             },
             spv.SpvOpVariable => {
-                if (wordCount < 4) return error.InvalidShader;
+                if (wordCount < 4) return BackendError.InvalidShader;
 
                 ids[code[i + 2]].opcode = opcode;
                 ids[code[i + 2]].id = code[i + 1];
                 ids[code[i + 2]].class = code[i + 3];
-
-                
             },
             spv.SpvOpTypeStruct, spv.SpvOpTypeImage => {
-                if (wordCount < 2) return error.InvalidShader;
+                if (wordCount < 2) return BackendError.InvalidShader;
 
                 ids[code[i + 1]].opcode = opcode;
             },
@@ -146,39 +160,36 @@ fn parse(allocator: *std.mem.Allocator, code: []const u32) !Shader.Reflection {
 
         i += wordCount;
     }
-    
+
     for (ids) |id| {
         if (id.opcode == spv.SpvOpVariable) {
             switch (id.class) {
                 spv.SpvStorageClassUniform, spv.SpvStorageClassUniformConstant => {
                     if (ids[ids[id.id].id].opcode == spv.SpvOpTypeStruct) {
-                        try descriptorSets.append(.{
-                            .set = id.set,
+                        try refl.descriptor_sets[id.set].bindings.append(.{
                             .binding = id.binding,
 
                             .kind = .uniform_buffer,
                         });
-                    } else return error.UnknownResourceType;
+                    } else return BackendError.UnknownResourceType;
                 },
                 spv.SpvStorageClassStorageBuffer => {
                     switch (ids[ids[id.id].id].opcode) {
                         spv.SpvOpTypeStruct => {
-                            try descriptorSets.append(.{
-                                .set = id.set,
+                            try refl.descriptor_sets[id.set].bindings.append(.{
                                 .binding = id.binding,
 
                                 .kind = .storage_buffer,
                             });
                         },
                         spv.SpvOpTypeImage => {
-                            try descriptorSets.append(.{
-                                .set = id.set,
+                            try refl.descriptor_sets[id.set].bindings.append(.{
                                 .binding = id.binding,
 
                                 .kind = .storage_image,
                             });
                         },
-                        else => return error.UnknownResourceType,
+                        else => return BackendError.UnknownResourceType,
                     }
                 },
                 else => {},
@@ -187,9 +198,6 @@ fn parse(allocator: *std.mem.Allocator, code: []const u32) !Shader.Reflection {
     }
 
     allocator.free(ids);
-
-    refl.descriptor_sets = descriptorSets.toOwnedSlice();
-    descriptorSets.deinit();
 
     return refl;
 }

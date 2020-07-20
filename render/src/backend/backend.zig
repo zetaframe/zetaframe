@@ -27,6 +27,8 @@ pub const BackendError = error{
     CreateSurfaceFailed,
     AcquireImageFailed,
     PresentFailed,
+    InvalidShader,
+    UnknownResourceType
 };
 
 // Vulkan Backend
