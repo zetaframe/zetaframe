@@ -6,6 +6,7 @@ const glfw = @import("../include/glfw.zig");
 
 const windowing = @import("../windowing.zig");
 const shader = @import("shader.zig");
+
 const BackendError = @import("backend.zig").BackendError;
 
 const enableValidationLayers = std.debug.runtime_safety;

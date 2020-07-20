@@ -7,7 +7,6 @@ const glfw = @import("../include/glfw.zig");
 const windowing = @import("../windowing.zig");
 
 const BackendError = @import("backend.zig").BackendError;
-
 const Context = @import("context.zig").Context;
 const RenderPass = @import("renderpass.zig").RenderPass;
 
