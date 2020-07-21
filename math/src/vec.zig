@@ -177,7 +177,7 @@ pub fn Vec2(comptime T: type) type {
             };
         }
 
-        pub fn newFromVec3(other: Vec3) Self {
+        pub fn newFromVec3(other: Vec3(T)) Self {
             return Self{
                 .x = other.x,
                 .y = other.y,
@@ -220,7 +220,7 @@ pub fn Vec3(comptime T: type) type {
             };
         }
 
-        pub fn newFromVec2(other: Vec2, z: T) Self {
+        pub fn newFromVec2(other: Vec2(T), z: T) Self {
             return Self{
                 .x = other.x,
                 .y = other.y,
@@ -228,7 +228,7 @@ pub fn Vec3(comptime T: type) type {
             };
         }
 
-        pub fn newFromVec4(other: Vec4) Self {
+        pub fn newFromVec4(other: Vec4(T)) Self {
             return Self{
                 .x = other.x,
                 .y = other.y,
@@ -276,7 +276,7 @@ pub fn Vec4(comptime T: type) type {
             };
         }
 
-        pub fn newFromVec2(other: Vec2, z: T, w: T) Self {
+        pub fn newFromVec2(other: Vec2(T), z: T, w: T) Self {
             return Self{
                 .x = other.x,
                 .y = other.y,
@@ -285,7 +285,7 @@ pub fn Vec4(comptime T: type) type {
             };
         }
 
-        pub fn newFromVec3(other: Vec3, w: T) Self {
+        pub fn newFromVec3(other: Vec3(T), w: T) Self {
             return Self{
                 .x = other.x,
                 .y = other.y,
