@@ -254,7 +254,7 @@ pub const Context = struct {
         self.mem_properties = self.vki.getPhysicalDeviceMemoryProperties(self.physical_device);
         self.features = self.vki.getPhysicalDeviceFeatures(self.physical_device);
 
-        std.log.info(.zetarender, "Using Device: {}\n", .{self.properties.device_name});
+        std.log.info("Using Device: {}\n", .{self.properties.device_name});
     }
 
     // Creates the device from the physicalDevice
@@ -384,7 +384,7 @@ fn calculateDeviceScore(allocator: *Allocator, vki: InstanceDispatch, pdevice: v
     if (!try checkDeviceExtensionSupport(allocator, vki, pdevice)) return 0;
     if (!try checkSwapchainSupport(vki, pdevice, surface)) return 0;
 
-    std.log.debug(.zetarender, "Device: {}, Type: {}, Score: {}\n", .{ deviceProperties.device_name, deviceProperties.device_type, score });
+    std.log.debug("Device: {}, Type: {}, Score: {}\n", .{ deviceProperties.device_name, deviceProperties.device_type, score });
 
     return score;
 }

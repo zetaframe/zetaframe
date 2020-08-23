@@ -8,6 +8,8 @@ const material = @import("material.zig");
 pub const Material = material.Material;
 pub const MaterialInstance = material.MaterialInstance;
 
+pub const program = @import("program/program.zig");
+
 pub const Render = struct {
     const Self = @This();
     allocator: *Allocator,

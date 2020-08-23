@@ -126,6 +126,8 @@ pub const Pipeline = struct {
     shader_modules: std.ArrayList(vk.ShaderModule),
     shader_stage_infos: std.ArrayList(vk.PipelineShaderStageCreateInfo),
 
+    descriptor_set_layouts: std.ArrayList(vk.DescriptorSetLayout),
+
     vertex_binding_desciptions: std.ArrayList(vk.VertexInputBindingDescription),
     vertex_attribute_desciptions: std.ArrayList(vk.VertexInputAttributeDescription),
     vertex_input_info: vk.PipelineVertexInputStateCreateInfo,
@@ -151,6 +153,8 @@ pub const Pipeline = struct {
             .shader_modules = undefined,
             .shader_stage_infos = undefined,
 
+            .descriptor_set_layouts = undefined,
+
             .vertex_binding_desciptions = undefined,
             .vertex_attribute_desciptions = undefined,
             .vertex_input_info = undefined,
@@ -174,6 +178,8 @@ pub const Pipeline = struct {
 
         self.shader_modules = std.ArrayList(vk.ShaderModule).init(allocator);
         self.shader_stage_infos = std.ArrayList(vk.PipelineShaderStageCreateInfo).init(allocator);
+
+        self.descriptor_set_layouts = std.ArrayList(vk.DescriptorSetLayout).init(allocator);
     }
 
     pub fn deinit(self: Self) void {
@@ -181,6 +187,8 @@ pub const Pipeline = struct {
         self.context.vkd.destroyPipelineLayout(self.context.device, self.layout, null);
 
         for (self.shader_modules.items) |module| self.context.vkd.destroyShaderModule(self.context.device, module, null);
+
+        self.descriptor_set_layouts.deinit();
 
         self.shader_stage_infos.deinit();
         self.shader_modules.deinit();
@@ -191,8 +199,8 @@ pub const Pipeline = struct {
 
     pub fn createPipeline(self: *Self, renderPass: *RenderPass) !void {
         const pipelineLayoutInfo = vk.PipelineLayoutCreateInfo{
-            .set_layout_count = 0,
-            .p_set_layouts = undefined,
+            .set_layout_count = @intCast(u32, self.descriptor_set_layouts.items.len),
+            .p_set_layouts = @ptrCast([*]const vk.DescriptorSetLayout, &self.descriptor_set_layouts.items),
 
             .push_constant_range_count = 0,
             .p_push_constant_ranges = undefined,
@@ -249,6 +257,10 @@ pub const Pipeline = struct {
             .flags = .{},
             .p_specialization_info = null,
         });
+    }
+
+    pub fn addDescriptorSetLayout(self: *Self, layout: vk.DescriptorSetLayout) !void {
+        try self.descriptor_set_layouts.append(layout);
     }
 
     fn createFixed(self: *Self) !void {

@@ -2,49 +2,50 @@ const std = @import("std");
 const trait = std.meta.trait;
 const Allocator = std.mem.Allocator;
 
-const Shader = @import("backend/shader.zig").Shader;
-
-const vkbackend = @import("backend/backend.zig");
-const VulkanError = vkbackend.VulkanError;
-
 const vk = @import("include/vk.zig");
+const zva = @import("zva");
+
+const BackendError = @import("backend/backend.zig").BackendError;
 
 const Context = @import("backend/context.zig").Context;
 const Buffer = @import("backend/buffer.zig").Buffer;
 const Swapchain = @import("backend/swapchain.zig").Swapchain;
 const RenderPass = @import("backend/renderpass.zig").RenderPass;
 const Pipeline = @import("backend/pipeline.zig").Pipeline;
+const Shader = @import("backend/shader.zig").Shader;
 
 /// Defines the pipeline and shaders of a material
 /// Use material instance to get an instance of this material
 pub const Material = struct {
-    pub const Description = struct {
-        pub const Shaders = struct {
-            vertex: Shader,
-            fragment: Shader,
-        };
-
-        shaders: Shaders,
+    pub const Shaders = struct {
+        vertex: Shader,
+        fragment: Shader,
     };
 
     const Self = @This();
     allocator: *Allocator,
 
-    description: Description,
-
     context: *const Context,
 
     pipeline: Pipeline,
 
-    pub fn new(description: Description, pipelineSettings: Pipeline.Settings) Self {
+    desc_layout: vk.DescriptorSetLayout,
+    desc_set: vk.DescriptorSet,
+
+    shaders: Shaders,
+
+    pub fn new(shaders: Shaders, pipelineSettings: Pipeline.Settings) Self {
         return Self{
             .allocator = undefined,
-
-            .description = description,
 
             .context = undefined,
 
             .pipeline = Pipeline.new(pipelineSettings),
+
+            .desc_layout = undefined,
+            .desc_set = undefined,
+
+            .shaders = shaders,
         };
     }
 
@@ -53,43 +54,82 @@ pub const Material = struct {
 
         self.context = context;
 
+        // const descBinding = vk.DescriptorSetLayoutBinding{
+        //     .binding = if (self.shaders.vertex.refl.descriptor_sets[1].binding == self.shaders.fragment.refl.descriptor_sets[1].binding)
+        //         self.shaders.fragment.refl.descriptor_sets[1].binding
+        //     else
+        //         return BackendError.InvalidShader,
+
+        //     .descriptor_type = if (self.shaders.vertex.refl.descriptor_sets[1].kind == self.shaders.fragment.refl.descriptor_sets[1].kind)
+        //         self.shaders.fragment.refl.descriptor_sets[1].kind
+        //     else
+        //         return BackendError.InvalidShader,
+        //     .descriptor_count = 1,
+
+        //     .stage_flags = .{ .vertex_bit = true, .fragment_bit = true },
+        //     .p_immutable_samplers = null,
+        // };
+        // const layoutInfo = vk.DescriptorSetLayoutCreateInfo{
+        //     .binding_count = 1,
+        //     .p_bindings = @ptrCast([*]const vk.DescriptorSetLayoutBinding, &descBinding),
+
+        //     .flags = .{},
+        // };
+        // self.desc_layout = try self.context.vkd.createDescriptorSetLayout(context.device, layoutInfo, null);
+
         try self.pipeline.init(allocator, context);
-        try self.pipeline.addShader(self.description.shaders.vertex);
-        try self.pipeline.addShader(self.description.shaders.fragment);
+        try self.pipeline.addShader(self.shaders.vertex);
+        try self.pipeline.addShader(self.shaders.fragment);
         try self.pipeline.createPipeline(renderPass);
     }
 
     pub fn deinit(self: Self) void {
         self.pipeline.deinit();
 
-        self.description.shaders.fragment.deinit();
-        self.description.shaders.vertex.deinit();
+        // self.context.vkd.destroyDescriptorSetLayout(self.context.device, self.desc_layout, null);
+
+        self.shaders.fragment.deinit();
+        self.shaders.vertex.deinit();
     }
 };
 
-pub const MaterialInstance = struct {
+pub const InstancedMaterial = struct {
     const Self = @This();
-    allocator: *Allocator,
-    vallocator: *vma.Allocator,
+    initFn: fn (self: *Self, vallocator: *zva.Allocator) anyerror!void,
 
-    material: *Material,
-
-    desc_pool: vk.DescriptorPool,
-    desc_set_layout: vk.DescriptorSetLayout,
-
-    pub fn new(material: *Material) Self {
-        return Self{
-            .allocator = undefined,
-            .vallocator = undefined,
-
-            .material = material,
-
-            .desc_pool = undefined,
-            .desc_set_layout = undefined,
-        };
-    }
-
-    pub fn init(allocator: *Allocator, vallocator: *vma.Allocator) !void {
-        
+    pub fn init(self: *Self, vallocator: *zva.Allocator) !void {
+        self.initFn(self, vallocator);
     }
 };
+
+pub fn MaterialInstance(comptime T: type) type {
+    return struct {
+        const Self = @This();
+        im: InstancedMaterial,
+
+        vallocator: *zva.Allocator,
+
+        material: *Material,
+
+        buffer: Buffer,
+
+        pub fn new(material: *Material) Self {
+            return Self{
+                .im = .{ .initFn = init },
+
+                .vallocator = undefined,
+
+                .material = material,
+
+                .buffer = undefined,
+                .allocation = undefined,
+            };
+        }
+
+        pub fn init(im: *InstancedMaterial, vallocator: *zva.Allocator) !void {
+            const self = @fieldParentPtr(Self, "im", im);
+
+            self.vallocator = vallocator;
+        }
+    };
+}
