@@ -5,11 +5,15 @@ usingnamespace @import("zetarender");
 const vert_shader = @alignCast(@alignOf(u32), @embedFile("shaders/vert.spv"));
 const frag_shader = @alignCast(@alignOf(u32), @embedFile("shaders/frag.spv"));
 
+const zetarender_validation: bool = false;
+
 pub fn main() !void {
-    const UniformBufferObject = packed struct {
-        model: zm.Mat44f,
-        view: zm.Mat44f,
-        proj: zm.Mat44f,
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer std.debug.assert(!gpa.deinit());
+    var allocator = &gpa.allocator;
+
+    const GlobalData = packed struct {
+        proj: zm.Mat44f align(16),
     };
 
     const Vertex = packed struct {
@@ -26,11 +30,9 @@ pub fn main() !void {
         }
     };
 
-    var simple_material = api.Material.new(.{
-        .shaders = .{
-            .vertex = try backend.Shader.initData(vert_shader),
-            .fragment = try backend.Shader.initData(frag_shader),
-        },
+    var simple_material = Material.new(.{
+        .vertex = try backend.Shader.initBytes(allocator, vert_shader),
+        .fragment = try backend.Shader.initBytes(allocator, frag_shader),
     }, .{
         .inputs = &[_]backend.Pipeline.Settings.Input{
             backend.Pipeline.Settings.Input.generateFromType(Vertex, 0),
@@ -46,48 +48,35 @@ pub fn main() !void {
 
     var testWindow = windowing.Window.new("Vulkan Test", .{ .width = 1280, .height = 720 });
     try testWindow.init();
-    defer testWindow.deinit();
 
     var vertex1 = Vertex.new(zm.Vec2f.new(-0.5, -0.5), zm.Vec3f.new(1.0, 0.0, 0.0));
     var vertex2 = Vertex.new(zm.Vec2f.new(0.5, -0.5), zm.Vec3f.new(0.0, 1.0, 0.0));
     var vertex3 = Vertex.new(zm.Vec2f.new(0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 1.0));
     var vertex4 = Vertex.new(zm.Vec2f.new(-0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 0.0));
-    var vertexBuffer = backend.buffer.StagedBuffer(Vertex, .Vertex).new(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
+    var vertexBuffer = backend.buffer.DirectBuffer(Vertex, .Vertex).new(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
 
     var indices = [_]u16{ 0, 1, 2, 2, 3, 0 };
-    var indexBuffer = backend.buffer.StagedBuffer(u16, .Index).new(&indices);
+    var indexBuffer = backend.buffer.DirectBuffer(u16, .Index).new(&indices);
 
     var swapchain = backend.Swapchain.new();
     var renderPass = backend.RenderPass.new();
-    var command = backend.Command.new(&vertexBuffer.buf, &indexBuffer.buf);
 
-    var vbackend = backend.Backend.new(std.heap.c_allocator, &testWindow, swapchain, renderPass);
+    var vbackend = backend.Backend.new(allocator, &testWindow, swapchain, renderPass, .{ .in_flight_frames = 2 });
     try vbackend.init();
-    defer vbackend.deinit();
 
-    try simple_material.init(std.heap.c_allocator, &vbackend.context, &vbackend.render_pass, &vbackend.swapchain);
-    defer simple_material.deinit();
+    try simple_material.init(allocator, &vbackend.context, &vbackend.render_pass, &vbackend.swapchain);
 
-    var framebuffers = try std.heap.c_allocator.alloc(backend.Framebuffer, vbackend.swapchain.imageviews.len);
-    defer std.heap.c_allocator.free(framebuffers);
+    var command0 = backend.command.IndexedDrawCommandBuffer.new(&vertexBuffer.buf, &indexBuffer.buf, &simple_material.pipeline, &vbackend.render_pass);
+    try command0.command.init(allocator, &vbackend.vallocator, &vbackend.context);
 
-    for (framebuffers) |*fb, i| {
-        fb.* = try backend.Framebuffer.init(&vbackend.context, &[_]backend.ImageView{vbackend.swapchain.imageviews[i]}, &vbackend.render_pass, &vbackend.swapchain);
-    }
-    defer {
-        for (framebuffers) |framebuffer| {
-            framebuffer.deinit();
-        }
-    }
-
-    try command.init(std.heap.c_allocator, &vbackend.vallocator, &vbackend.context, &vbackend.render_pass, &simple_material.pipeline, vbackend.swapchain.extent, framebuffers);
-    defer command.deinit();
+    const ns_per_frame = 1000000000 / 64;
 
     var timer = std.time.Timer.start() catch unreachable;
+    var last = @intToFloat(f64, timer.read());
+    var fps: f64 = 0;
     var counter: f32 = 0;
     while (testWindow.isRunning()) {
         counter += 0.01;
-        timer.reset();
 
         testWindow.update();
 
@@ -102,8 +91,25 @@ pub fn main() !void {
 
         try vertexBuffer.update(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
 
-        try vbackend.submit(&command);
+        try vbackend.present(&command0.command);
 
-        //std.log.info(.example, "fps: {d}\n", .{1 / (@intToFloat(f64, timer.lap()) / 1000000000)});
+        try vbackend.vallocator.gc();
+
+        const now = @intToFloat(f64, timer.read());
+        const fps2 = 1 / ((now - last) / 1000000000);
+        fps = (fps * 0.99) + (fps2 * (1.0 - 0.99));
+        last = now;
+
+        std.debug.print("{d}\n", .{fps});
     }
+
+    // Must call this first to ensure no frames are being rendered
+    vbackend.deinitFrames();
+
+    command0.command.deinit();
+    simple_material.deinit();
+    // uniform.deinit();
+
+    vbackend.deinit();
+    testWindow.deinit();
 }
