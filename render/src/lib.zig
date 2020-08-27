@@ -22,7 +22,7 @@ pub const Render = struct {
             .allocator = allocator,
 
             .window = window,
-            .backend = backend.Backend.new(allocator, window, backend.Swapchain.new(), backend.RenderPass.new(), .{ .in_flight_frames = 2 }),
+            .backend = backend.Backend.new(allocator, window, backend.Swapchain.new(), .{ .in_flight_frames = 2 }),
         };
     }
 
@@ -31,8 +31,11 @@ pub const Render = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.backend.deinitFrames();
         self.backend.deinit();
+    }
+
+    pub fn stop(self: *Self) void {
+        self.backend.deinitFrames();
     }
 
     pub fn present() !void {

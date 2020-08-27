@@ -1,13 +1,8 @@
 // Re-exports
-pub const Shader = @import("shader.zig").Shader;
 pub const Context = @import("context.zig").Context;
-pub const RenderPass = @import("renderpass.zig").RenderPass;
-pub const Pipeline = @import("pipeline.zig").Pipeline;
 pub const Swapchain = @import("swapchain.zig").Swapchain;
-pub const command = @import("command.zig");
-pub const CommandBuffer = command.CommandBuffer;
 pub const buffer = @import("buffer.zig");
-pub const Program = @import("program.zig").Program;
+pub const Program = @import("../program/program.zig").Program;
 pub const Uniform = @import("uniform.zig").Uniform;
 
 const std = @import("std");
@@ -47,7 +42,6 @@ pub const Backend = struct {
     window: *windowing.Window,
 
     swapchain: Swapchain,
-    render_pass: RenderPass,
 
     context: Context,
 
@@ -57,7 +51,7 @@ pub const Backend = struct {
     frames: []Frame,
     frame_index: u32 = 0,
 
-    pub fn new(allocator: *Allocator, window: *windowing.Window, swapchain: Swapchain, renderPass: RenderPass, settings: Settings) Self {
+    pub fn new(allocator: *Allocator, window: *windowing.Window, swapchain: Swapchain, settings: Settings) Self {
         return Self{
             .settings = settings,
 
@@ -67,7 +61,6 @@ pub const Backend = struct {
             .window = window,
 
             .swapchain = swapchain,
-            .render_pass = renderPass,
 
             .context = undefined,
 
@@ -93,8 +86,6 @@ pub const Backend = struct {
 
         try self.swapchain.init(self.allocator, &self.context, self.window);
 
-        try self.render_pass.init(&self.context, self.swapchain.image_format);
-
         self.frames = try self.allocator.alloc(Frame, self.settings.in_flight_frames);
         for (self.frames) |*frame| {
             frame.* = try Frame.init(&self.context);
@@ -103,8 +94,6 @@ pub const Backend = struct {
 
     pub fn deinit(self: *Self) void {
         self.context.vkd.deviceWaitIdle(self.context.device) catch unreachable;
-
-        self.render_pass.deinit();
 
         self.swapchain.deinit();
 
@@ -134,7 +123,7 @@ pub const Backend = struct {
         }
     }
 
-    pub fn present(self: *Self, cb: *CommandBuffer) !void {
+    pub fn present(self: *Self, program: *const Program) !void {
         var currentFrame = &self.frames[self.frame_index];
         try currentFrame.waitForFence();
         try self.context.vkd.resetFences(self.context.device, 1, @ptrCast([*]const vk.Fence, &currentFrame.fence));
@@ -145,7 +134,7 @@ pub const Backend = struct {
             return;
         }
 
-        try currentFrame.prepare(cb, &self.swapchain, imageIndex, &self.render_pass);
+        try currentFrame.prepare(program, &self.swapchain, imageIndex);
 
         try self.context.vkd.queueSubmit(self.context.graphics_queue, 1, &[_]vk.SubmitInfo{.{
             .wait_semaphore_count = 1,
@@ -222,12 +211,12 @@ const Frame = struct {
         self.context.vkd.freeCommandBuffers(self.context.device, self.context.graphics_pool, 1, @ptrCast([*]const vk.CommandBuffer, &self.command_buffer));
     }
 
-    fn prepare(self: *Frame, cb: *CommandBuffer, swapchain: *Swapchain, imageIndex: u32, renderPass: *RenderPass) !void {
+    fn prepare(self: *Frame, program: *const Program, swapchain: *Swapchain, imageIndex: u32) !void {
         if (self.framebuffer) |fb| fb.deinit();
         var attachment = [_]vk.ImageView{swapchain.images[imageIndex].view};
-        self.framebuffer = try Framebuffer.init(self.context, attachment[0..], renderPass, swapchain);
+        self.framebuffer = try Framebuffer.init(self.context, attachment[0..], program.steps[0].RenderPass.renderpass(), swapchain);
 
-        try cb.record(self.command_buffer, self.framebuffer.?);
+        try program.execute(self.command_buffer, self.framebuffer.?);
     }
 
     fn waitForFence(self: *Frame) !void {

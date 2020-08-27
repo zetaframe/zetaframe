@@ -121,6 +121,8 @@ const DeviceDispatch = struct {
 pub const Context = struct {
     const Self = @This();
     allocator: *Allocator,
+    // arena is used for loading shader code
+    arena: std.heap.ArenaAllocator,
 
     vkb: BaseDispatch,
     vki: InstanceDispatch,
@@ -150,6 +152,7 @@ pub const Context = struct {
     pub fn init(allocator: *Allocator, window: *windowing.Window) !Self {
         var self: Context = undefined;
         self.allocator = allocator;
+        self.arena = std.heap.ArenaAllocator.init(allocator);
         self.window = window;
 
         self.vkb = try BaseDispatch.load(glfw.glfwGetInstanceProcAddress);
@@ -185,6 +188,8 @@ pub const Context = struct {
         self.vkd.destroyDevice(self.device, null);
         self.vki.destroySurfaceKHR(self.instance, self.surface, null);
         self.vki.destroyInstance(self.instance, null);
+
+        self.arena.deinit();
     }
 
     // Creates the vulkan instance
@@ -200,6 +205,7 @@ pub const Context = struct {
             .api_version = vk.API_VERSION_1_1,
         };
 
+        // Get required vulkan extensions
         var glfwExtensionCount: u32 = 0;
         const glfwExtensions = glfw.glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
@@ -215,6 +221,8 @@ pub const Context = struct {
         }, null);
     }
 
+    // Creates a surface for vulkan to draw on
+    // Currently uses glfw
     fn createSurface(self: *Self) !void {
         if (glfw.glfwCreateWindowSurface(self.instance, self.window.window, null, &self.surface) != vk.Result.success) {
             return BackendError.CreateSurfaceFailed;
@@ -254,7 +262,7 @@ pub const Context = struct {
         self.mem_properties = self.vki.getPhysicalDeviceMemoryProperties(self.physical_device);
         self.features = self.vki.getPhysicalDeviceFeatures(self.physical_device);
 
-        std.log.info("Using Device: {}\n", .{self.properties.device_name});
+        std.log.info("Using Device: {}", .{self.properties.device_name});
     }
 
     // Creates the device from the physicalDevice
@@ -384,7 +392,7 @@ fn calculateDeviceScore(allocator: *Allocator, vki: InstanceDispatch, pdevice: v
     if (!try checkDeviceExtensionSupport(allocator, vki, pdevice)) return 0;
     if (!try checkSwapchainSupport(vki, pdevice, surface)) return 0;
 
-    std.log.debug("Device: {}, Type: {}, Score: {}\n", .{ deviceProperties.device_name, deviceProperties.device_type, score });
+    std.log.debug("Device: {}, Type: {}, Score: {}", .{ deviceProperties.device_name, deviceProperties.device_type, score });
 
     return score;
 }

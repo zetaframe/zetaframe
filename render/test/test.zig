@@ -23,6 +23,66 @@ const Vertex = packed struct {
     }
 };
 
+const SimplePipeline = program.pipeline.State(.{
+    .render_pass = .{
+        .attachments = &[_]program.renderpass.Attachment{.{
+            .format = .r8g8b8a8_unorm,
+
+            .samples = .{ .@"1_bit" = true },
+
+            .load_op = .clear,
+            .store_op = .store,
+
+            .stencil_load_op = .dont_care,
+            .stencil_store_op = .dont_care,
+
+            .initial_layout = .@"undefined",
+            .final_layout = .present_src_khr,
+        }},
+        .subpasses = &[_]program.renderpass.SubPass{.{
+            .bind_point = .graphics,
+            .color_attachments = &[_]program.renderpass.SubPass.Dependency{.{
+                .index = 0,
+                .layout = .color_attachment_optimal,
+            }},
+            .resolve_attachments = &[_]program.renderpass.SubPass.Dependency{},
+        }},
+    },
+    .layout = .{
+        .set_layouts = &[_]program.descriptor.SetLayout{},
+    },
+
+    .shader_stages = &[_]program.pipeline.ShaderStage{
+        .{
+            .stage = .{ .vertex_bit = true },
+            .shader = .{ .path = "render/test/shaders/vert.spv" },
+            .entrypoint = "main",
+        },
+        .{
+            .stage = .{ .fragment_bit = true },
+            .shader = .{ .path = "render/test/shaders/frag.spv" },
+            .entrypoint = "main",
+        },
+    },
+
+    .vertex_input_state = .{
+        .input_rate = .vertex,
+        .bindings = &[_]type{Vertex},
+    },
+    .input_assembly_state = .{
+        .topology = .triangle_list,
+        .primitive_restart = false,
+    },
+    .rasterizer_state = .{
+        .cull_mode = .{ .back_bit = true },
+        .front_face = .clockwise,
+        .polygon_mode = .fill,
+    },
+    .multisample_state = null,
+    .depth_stencil_state = null,
+    .color_blend_state = .{},
+});
+
 test "render" {
     std.debug.print("\n", .{});
 
@@ -34,44 +94,19 @@ test "render" {
     try render.init();
     defer render.deinit();
 
-    const pipelinestate1 = program.pipeline.State(.{
-        .render_pass = .{
-            .attachments = &[_]program.renderpass.Attachment{},
-            .subpasses = &[_]program.renderpass.SubPass{},
-        },
-        .layout = .{
-            .set_layouts = &[_]program.descriptor.SetLayout{},
-        },
+    const simple_pipeline = try SimplePipeline.build(&render.backend.context);
 
-        .topology = .triangle_list,
-        .primitive_restart = false,
-
-        .shader_stages = &[_]program.pipeline.ShaderStage{
-            .{
-                .stage = .{ .vertex_bit = true },
-                .shader = .{ .path = "render/test/shaders/vert.spv" },
-            },
-            .{
-                .stage = .{ .fragment_bit = true },
-                .shader = .{ .path = "render/test/shaders/frag.spv" },
+    const simple_program = program.Program{
+        .steps = &[_]program.Step{
+            program.Step{
+                .pipeline_state = &simple_pipeline.state,
             },
         },
-
-        .vertex_input_state = .{
-            .input_rate = .vertex,
-            .bindings = &[_]?type{Vertex},
-        },
-        .rasterizer_state = .{},
-        .multisample_state = null,
-        .depth_stencil_state = null,
-        .color_blend_state = .{},
-    }){};
-
-    const simple_program = program.Program(.{
-        program.Pass{
-            .pipeline_state = &pipelinestate1.state,
-        },
-    }).init();
+    };
 
     try simple_program.execute();
+
+    while (testWindow.isRunning()) {
+        testWindow.update();
+    }
 }

@@ -1,115 +1,139 @@
-const std = @import("std");
 const zm = @import("zetamath");
 usingnamespace @import("zetarender");
 
-const vert_shader = @alignCast(@alignOf(u32), @embedFile("shaders/vert.spv"));
-const frag_shader = @alignCast(@alignOf(u32), @embedFile("shaders/frag.spv"));
+const std = @import("std");
 
-const zetarender_validation: bool = false;
+const Vertex = packed struct {
+    const Self = @This();
+
+    pos: zm.Vec2f,
+    color: zm.Vec3f,
+
+    pub fn new(pos: zm.Vec2f, color: zm.Vec3f) Self {
+        return Self{
+            .pos = pos,
+            .color = color,
+        };
+    }
+};
+
+const SimpleRenderPass = program.renderpass.Object(.{
+    .clear_value = .{ .color = .{ .float_32 = [4]f32{ 1.0, 0.0, 0.0, 1.0 } } },
+    .attachments = &[_]program.renderpass.Attachment{.{
+        .format = null,
+
+        .samples = .{ .@"1_bit" = true },
+
+        .load_op = .clear,
+        .store_op = .store,
+
+        .stencil_load_op = .dont_care,
+        .stencil_store_op = .dont_care,
+
+        .initial_layout = .@"undefined",
+        .final_layout = .present_src_khr,
+    }},
+    .subpasses = &[_]program.renderpass.SubPass{.{
+        .bind_point = .graphics,
+        .color_attachments = &[_]program.renderpass.SubPass.Dependency{.{
+            .index = 0,
+            .layout = .color_attachment_optimal,
+        }},
+        // .resolve_attachments = &[_]program.renderpass.SubPass.Dependency{},
+    }},
+});
+
+const SimplePipeline = program.pipeline.Object(.{
+    .kind = .graphics,
+
+    .render_pass = SimpleRenderPass,
+    .layout = .{
+        .set_layouts = &[_]program.descriptor.SetLayout{.{
+            .bindings = &[_]program.descriptor.Binding{.{
+                .name = "test",
+                .kind = .uniform_buffer,
+                .count = 1,
+                .stages = .{ .vertex_bit = true, .fragment_bit = true },
+            }},
+        }},
+    },
+
+    .shader_stages = &[_]program.pipeline.ShaderStage{
+        .{
+            .stage = .{ .vertex_bit = true },
+            .shader = .{ .path = "render/test/shaders/vert.spv" },
+            .entrypoint = "main",
+        },
+        .{
+            .stage = .{ .fragment_bit = true },
+            .shader = .{ .path = "render/test/shaders/frag.spv" },
+            .entrypoint = "main",
+        },
+    },
+
+    .vertex_input_state = .{
+        .input_rate = .vertex,
+        .bindings = &[_]type{Vertex},
+    },
+    .input_assembly_state = .{
+        .topology = .triangle_list,
+        .primitive_restart = false,
+    },
+    .rasterizer_state = .{
+        .cull_mode = .{ .back_bit = true },
+        .front_face = .clockwise,
+        .polygon_mode = .fill,
+    },
+    .multisample_state = null,
+    .depth_stencil_state = null,
+    .color_blend_state = .{
+        .attachments = &[_]program.pipeline.ColorBlendState.Attachment{
+            .{
+                .enable_blending = false,
+
+                .color_blend_src = .zero,
+                .color_blend_dst = .zero,
+                .color_blend_op = .add,
+
+                .alpha_blend_src = .zero,
+                .alpha_blend_dst = .zero,
+                .alpha_blend_op = .add,
+
+                .color_write_mask = .{ .r_bit = true, .g_bit = true, .b_bit = true, .a_bit = true },
+            },
+        },
+    },
+});
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer std.debug.assert(!gpa.deinit());
     var allocator = &gpa.allocator;
 
-    const GlobalData = packed struct {
-        proj: zm.Mat44f align(16),
-    };
-
-    const Vertex = packed struct {
-        const Self = @This();
-
-        pos: zm.Vec2f,
-        color: zm.Vec3f,
-
-        pub fn new(pos: zm.Vec2f, color: zm.Vec3f) Self {
-            return Self{
-                .pos = pos,
-                .color = color,
-            };
-        }
-    };
-
-    var simple_material = Material.new(.{
-        .vertex = try backend.Shader.initBytes(allocator, vert_shader),
-        .fragment = try backend.Shader.initBytes(allocator, frag_shader),
-    }, .{
-        .inputs = &[_]backend.Pipeline.Settings.Input{
-            backend.Pipeline.Settings.Input.generateFromType(Vertex, 0),
-        },
-        .assembly = .{
-            .topology = .TriangleList,
-        },
-        .rasterizer = .{
-            .cull_mode = .None,
-            .front_face = .Clockwise,
-        },
-    });
-
     var testWindow = windowing.Window.new("Vulkan Test", .{ .width = 1280, .height = 720 });
     try testWindow.init();
+    defer testWindow.deinit();
 
-    var vertex1 = Vertex.new(zm.Vec2f.new(-0.5, -0.5), zm.Vec3f.new(1.0, 0.0, 0.0));
-    var vertex2 = Vertex.new(zm.Vec2f.new(0.5, -0.5), zm.Vec3f.new(0.0, 1.0, 0.0));
-    var vertex3 = Vertex.new(zm.Vec2f.new(0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 1.0));
-    var vertex4 = Vertex.new(zm.Vec2f.new(-0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 0.0));
-    var vertexBuffer = backend.buffer.DirectBuffer(Vertex, .Vertex).new(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
+    var render = Render.new(allocator, &testWindow);
+    try render.init();
+    defer render.deinit();
 
-    var indices = [_]u16{ 0, 1, 2, 2, 3, 0 };
-    var indexBuffer = backend.buffer.DirectBuffer(u16, .Index).new(&indices);
+    const simple_render_pass = try SimpleRenderPass.build(&render);
+    defer simple_render_pass.deinit();
 
-    var swapchain = backend.Swapchain.new();
-    var renderPass = backend.RenderPass.new();
+    const simple_pipeline = try SimplePipeline.build(&render, simple_render_pass);
+    defer simple_pipeline.deinit();
 
-    var vbackend = backend.Backend.new(allocator, &testWindow, swapchain, renderPass, .{ .in_flight_frames = 2 });
-    try vbackend.init();
+    const simple_program = program.Program.build(&render.backend.context, &[_]program.Step{
+        .{ .RenderPass = &simple_render_pass.base },
+        .{ .Pipeline = &simple_pipeline.base },
+    });
 
-    try simple_material.init(allocator, &vbackend.context, &vbackend.render_pass, &vbackend.swapchain);
-
-    var command0 = backend.command.IndexedDrawCommandBuffer.new(&vertexBuffer.buf, &indexBuffer.buf, &simple_material.pipeline, &vbackend.render_pass);
-    try command0.command.init(allocator, &vbackend.vallocator, &vbackend.context);
-
-    const ns_per_frame = 1000000000 / 64;
-
-    var timer = std.time.Timer.start() catch unreachable;
-    var last = @intToFloat(f64, timer.read());
-    var fps: f64 = 0;
-    var counter: f32 = 0;
     while (testWindow.isRunning()) {
-        counter += 0.01;
-
         testWindow.update();
 
-        vertex1.color.x = @mod(vertex1.color.x + 0.001, 1.0);
-        vertex2.color.y = @mod(vertex1.color.x - 0.001, 1.0);
-        vertex3.color.z = @mod(vertex1.color.x + 0.001, 1.0);
-        vertex4.color.x = @mod(vertex1.color.x - 0.001, 1.0);
-        vertex1.pos.x = @sin(counter);
-        vertex1.pos.y = @cos(counter);
-        vertex2.pos.x = @sin(-counter);
-        vertex2.pos.y = @cos(counter);
-
-        try vertexBuffer.update(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
-
-        try vbackend.present(&command0.command);
-
-        try vbackend.vallocator.gc();
-
-        const now = @intToFloat(f64, timer.read());
-        const fps2 = 1 / ((now - last) / 1000000000);
-        fps = (fps * 0.99) + (fps2 * (1.0 - 0.99));
-        last = now;
-
-        std.debug.print("{d}\n", .{fps});
+        try render.backend.present(&simple_program);
     }
 
-    // Must call this first to ensure no frames are being rendered
-    vbackend.deinitFrames();
-
-    command0.command.deinit();
-    simple_material.deinit();
-    // uniform.deinit();
-
-    vbackend.deinit();
-    testWindow.deinit();
+    render.stop();
 }
