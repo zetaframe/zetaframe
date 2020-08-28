@@ -15,14 +15,9 @@ const renderpass = @import("renderpass.zig");
 
 pub const IObject = struct {
     executeFn: fn (self: *const IObject, cb: vk.CommandBuffer, fb: Framebuffer) anyerror!void,
-    executePostFn: fn (self: *const IObject, cb: vk.CommandBuffer, fb: Framebuffer) anyerror!void,
 
     pub fn execute(self: *const IObject, cb: vk.CommandBuffer, fb: Framebuffer) !void {
         try self.executeFn(self, cb, fb);
-    }
-
-    pub fn executePost(self: *const IObject, cb: vk.CommandBuffer, fb: Framebuffer) !void {
-        try self.executePostFn(self, cb, fb);
     }
 };
 
@@ -48,7 +43,6 @@ pub fn Object(comptime state: State) type {
 
         base: IObject = .{
             .executeFn = execute,
-            .executePostFn = executePost,
         },
         context: *const Context,
 
@@ -350,10 +344,6 @@ pub fn Object(comptime state: State) type {
             const self = @fieldParentPtr(Self, "base", base);
 
             self.context.vkd.cmdBindPipeline(cb, state.kind, self.pipeline);
-        }
-
-        pub fn executePost(base: *const IObject, cb: vk.CommandBuffer, fb: Framebuffer) !void {
-            
         }
     };
 }

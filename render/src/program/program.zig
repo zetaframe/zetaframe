@@ -9,6 +9,7 @@ pub const Step = @import("step.zig").Step;
 pub const renderpass = @import("renderpass.zig");
 pub const pipeline = @import("pipeline.zig");
 pub const descriptor = @import("descriptor.zig");
+pub const command = @import("command.zig");
 
 pub const Program = struct {
     context: *const Context,
@@ -54,7 +55,7 @@ pub const Program = struct {
             try switch (step) {
                 .RenderPass => |r| r.execute(cb, fb),
                 .Pipeline => |p| p.execute(cb, fb),
-                .Command => |c| c.execute(cb, fb),
+                .Command => |c| c.execute(self.context, cb, fb),
             };
         }
 

@@ -26,7 +26,7 @@ pub const IObject = struct {
 };
 
 pub const State = struct {
-    clear_value: vk.ClearValue,
+    clear_value: *vk.ClearValue,
 
     attachments: []const Attachment,
     subpasses: []const SubPass,
@@ -139,7 +139,7 @@ pub fn Object(comptime state: State) type {
                 },
 
                 .clear_value_count = 1,
-                .p_clear_values = @ptrCast([*]const vk.ClearValue, &state.clear_value),
+                .p_clear_values = @ptrCast([*]const vk.ClearValue, state.clear_value),
             }, .@"inline");
         }
 

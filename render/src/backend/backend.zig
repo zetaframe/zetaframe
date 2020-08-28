@@ -4,16 +4,16 @@ pub const Swapchain = @import("swapchain.zig").Swapchain;
 pub const buffer = @import("buffer.zig");
 pub const Program = @import("../program/program.zig").Program;
 pub const Uniform = @import("uniform.zig").Uniform;
+pub const Framebuffer = @import("framebuffer.zig").Framebuffer;
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const vk = @import("../include/vk.zig");
+pub const vk = @import("../include/vk.zig");
 const zva = @import("zva");
 
 const windowing = @import("../windowing.zig");
 
-const Framebuffer = @import("framebuffer.zig").Framebuffer;
 const ImageView = vk.ImageView;
 
 pub const BackendError = error{
