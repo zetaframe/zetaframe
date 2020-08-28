@@ -17,10 +17,7 @@ const Vertex = packed struct {
     }
 };
 
-var clear_color = backend.vk.ClearValue{ .color = .{ .float_32 = [4]f32{ 1.0, 0.0, 0.0, 1.0 } } };
-
 const SimpleRenderPass = program.renderpass.Object(.{
-    .clear_value = &clear_color,
     .attachments = &[_]program.renderpass.Attachment{.{
         .format = null,
 
@@ -48,7 +45,7 @@ const SimpleRenderPass = program.renderpass.Object(.{
 const vert_shader = @alignCast(@alignOf(u32), @embedFile("shaders/vert.spv"));
 const frag_shader = @alignCast(@alignOf(u32), @embedFile("shaders/frag.spv"));
 
-const SimplePipeline = program.pipeline.Object(.{
+const SimplePipelineState = program.pipeline.State{
     .kind = .graphics,
 
     .render_pass = SimpleRenderPass,
@@ -110,7 +107,15 @@ const SimplePipeline = program.pipeline.Object(.{
             },
         },
     },
+};
+const SimplePipeline = program.pipeline.Object(SimplePipelineState);
+
+const SimplePipeline2State = SimplePipelineState.override(.{
+    .rasterizer_state = .{
+        .cull_mode = .{ .back_bit = true },
+    },
 });
+const SimplePipeline2 = program.pipeline.Object(SimplePipeline2State);
 
 pub const SimpleCommand = struct {
     const Self = @This();
@@ -161,11 +166,16 @@ pub fn main() !void {
     try render.init();
     defer render.deinit();
 
-    const simple_render_pass = try SimpleRenderPass.build(&render);
+    var clear_color = backend.vk.ClearValue{ .color = .{ .float_32 = [4]f32{ 1.0, 0.0, 0.0, 1.0 } } };
+
+    const simple_render_pass = try SimpleRenderPass.build(&render, &clear_color);
     defer simple_render_pass.deinit();
 
-    const simple_pipeline = try SimplePipeline.build(&render, simple_render_pass);
+    const simple_pipeline = try SimplePipeline.build(&render, &simple_render_pass);
     defer simple_pipeline.deinit();
+
+    const simple_pipeline2 = try SimplePipeline2.build(&render, &simple_render_pass);
+    defer simple_pipeline2.deinit();
 
     var vertex1 = Vertex.new(zm.Vec2f.new(-0.5, -0.5), zm.Vec3f.new(1.0, 0.0, 0.0));
     var vertex2 = Vertex.new(zm.Vec2f.new(0.5, -0.5), zm.Vec3f.new(0.0, 1.0, 0.0));
@@ -179,10 +189,26 @@ pub fn main() !void {
     const simple_command = try SimpleCommand.build(&render, &vertex_buffer.buf, &index_buffer.buf);
     defer simple_command.deinit();
 
+    var vertex12 = Vertex.new(zm.Vec2f.new(-0.5, -0.5), zm.Vec3f.new(1.0, 0.0, 0.0));
+    var vertex22 = Vertex.new(zm.Vec2f.new(0.5, -0.5), zm.Vec3f.new(0.0, 1.0, 0.0));
+    var vertex32 = Vertex.new(zm.Vec2f.new(0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 1.0));
+    var vertex42 = Vertex.new(zm.Vec2f.new(-0.5, 0.5), zm.Vec3f.new(0.0, 0.0, 0.0));
+    var vertex_buffer2 = backend.buffer.DirectBuffer(Vertex, .Vertex).new(&[_]Vertex{ vertex12, vertex22, vertex32, vertex42 });
+
+    var indices2 = [_]u16{ 0, 1, 2, 2, 3, 0 };
+    var index_buffer2 = backend.buffer.DirectBuffer(u16, .Index).new(&indices2);
+
+    const simple_command2 = try SimpleCommand.build(&render, &vertex_buffer2.buf, &index_buffer2.buf);
+    defer simple_command2.deinit();
+
     const simple_program = program.Program.build(&render.backend.context, &[_]program.Step{
         .{ .RenderPass = &simple_render_pass.base },
+
         .{ .Pipeline = &simple_pipeline.base },
         .{ .Command = &simple_command.base },
+
+        .{ .Pipeline = &simple_pipeline2.base },
+        .{ .Command = &simple_command2.base },
     });
 
     var counter: f32 = 0;
