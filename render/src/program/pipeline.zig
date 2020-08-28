@@ -35,6 +35,41 @@ pub const State = struct {
     multisample_state: ?MultisampleState,
     depth_stencil_state: ?DepthStencilState,
     color_blend_state: ColorBlendState,
+
+    /// Creates a new state with the specified overrides
+    pub fn override(comptime self: *const State, comptime Override: anytype) State {
+        comptime var new = State{
+            .kind = self.kind,
+
+            .render_pass = self.render_pass,
+            .layout = self.layout,
+
+            .shader_stages = self.shader_stages,
+
+            .vertex_input_state = self.vertex_input_state,
+            .input_assembly_state = self.input_assembly_state,
+            .rasterizer_state = self.rasterizer_state,
+            .multisample_state = self.multisample_state,
+            .depth_stencil_state = self.depth_stencil_state,
+            .color_blend_state = self.color_blend_state,
+        };
+
+        comptime for (@typeInfo(@TypeOf(Override)).Struct.fields) |field, i| {
+            if (@hasField(State, field.name)) {
+                if (std.mem.startsWith(u8, @typeName(field.field_type), "struct")) {
+                    for (@typeInfo(field.field_type).Struct.fields) |inner_field, j| {
+                        if (@hasField(@TypeOf(@field(new, field.name)), inner_field.name)) {
+                            @field(@field(new, field.name), inner_field.name) = @field(@field(Override, field.name), inner_field.name);
+                        }
+                    }
+                } else {
+                    @field(new, field.name) = @field(Override, field.name);
+                }
+            }
+        };
+
+        return new;
+    }
 };
 
 pub fn Object(comptime state: State) type {
@@ -46,7 +81,7 @@ pub fn Object(comptime state: State) type {
         },
         context: *const Context,
 
-        render_pass: state.render_pass,
+        render_pass: *const state.render_pass,
 
         descriptor_set_layouts: [state.layout.set_layouts.len]vk.DescriptorSetLayout,
         shader_modules: [state.shader_stages.len]vk.ShaderModule,
@@ -54,7 +89,7 @@ pub fn Object(comptime state: State) type {
         pipeline: vk.Pipeline,
 
         /// Build a pipeline object for use in a program
-        pub fn build(render: *Render, render_pass: state.render_pass) !Self {
+        pub fn build(render: *Render, render_pass: *const state.render_pass) !Self {
             const context = &render.backend.context;
 
             // create VertexInput info

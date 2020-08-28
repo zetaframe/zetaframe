@@ -26,10 +26,32 @@ pub const IObject = struct {
 };
 
 pub const State = struct {
-    clear_value: *vk.ClearValue,
-
     attachments: []const Attachment,
     subpasses: []const SubPass,
+
+    /// Creates a new state with the specified overrides
+    pub fn override(comptime self: *const State, comptime Override: anytype) State {
+        comptime var new = State{
+            .attachments = self.attachments,
+            .subpasses = self.subpasses,
+        };
+
+        comptime for (@typeInfo(@TypeOf(Override)).Struct.fields) |field, i| {
+            if (@hasField(State, field.name)) {
+                if (std.mem.startsWith(u8, @typeName(field.field_type), "struct")) {
+                    for (@typeInfo(field.field_type).Struct.fields) |inner_field, j| {
+                        if (@hasField(@TypeOf(@field(new, field.name)), inner_field.name)) {
+                            @field(@field(new, field.name), inner_field.name) = @field(@field(Override, field.name), inner_field.name);
+                        }
+                    }
+                } else {
+                    @field(new, field.name) = @field(Override, field.name);
+                }
+            }
+        };
+
+        return new;
+    }
 };
 
 pub fn Object(comptime state: State) type {
@@ -43,9 +65,11 @@ pub fn Object(comptime state: State) type {
         },
         context: *const Context,
 
+        clear_value: *const vk.ClearValue,
+
         render_pass: vk.RenderPass,
 
-        pub fn build(render: *Render) !Self {
+        pub fn build(render: *Render, clear_value: *const vk.ClearValue) !Self {
             const context = &render.backend.context;
 
             // create ColorAttachments
@@ -117,6 +141,8 @@ pub fn Object(comptime state: State) type {
             return Self{
                 .context = context,
 
+                .clear_value = clear_value,
+
                 .render_pass = render_pass,
             };
         }
@@ -139,7 +165,7 @@ pub fn Object(comptime state: State) type {
                 },
 
                 .clear_value_count = 1,
-                .p_clear_values = @ptrCast([*]const vk.ClearValue, state.clear_value),
+                .p_clear_values = @ptrCast([*]const vk.ClearValue, self.clear_value),
             }, .@"inline");
         }
 
