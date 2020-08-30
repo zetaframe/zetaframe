@@ -74,7 +74,7 @@ pub const Backend = struct {
     pub fn init(self: *Self) !void {
         self.context = try Context.init(self.allocator, self.window);
 
-        self.vallocator = zva.Allocator.init(self.allocator, .{
+        self.vallocator = try zva.Allocator.init(self.allocator, .{
             .getPhysicalDeviceProperties = self.context.vki.vkGetPhysicalDeviceProperties,
             .getPhysicalDeviceMemoryProperties = self.context.vki.vkGetPhysicalDeviceMemoryProperties,
 
