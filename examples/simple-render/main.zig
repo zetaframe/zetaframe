@@ -84,7 +84,7 @@ const SimplePipelineState = program.pipeline.State{
         .primitive_restart = false,
     },
     .rasterizer_state = .{
-        .cull_mode = .{ },
+        .cull_mode = .{},
         .front_face = .clockwise,
         .polygon_mode = .fill,
     },
@@ -138,8 +138,8 @@ pub const SimpleCommand = struct {
     }
 
     pub fn deinit(self: Self) void {
-        self.index_buffer.deinit();
         self.vertex_buffer.deinit();
+        self.index_buffer.deinit();
     }
 
     pub fn execute(base: *const program.command.IObject, context: *const backend.Context, cb: backend.vk.CommandBuffer, fb: backend.Framebuffer) !void {
@@ -234,7 +234,7 @@ pub fn main() !void {
 
         try render.backend.present(&simple_program);
 
-        try render.backend.vallocator.gc();
+        // try render.backend.vallocator.gc();
     }
 
     render.stop();

@@ -38,7 +38,5 @@ pub const Render = struct {
         self.backend.deinitFrames();
     }
 
-    pub fn present() !void {
-
-    }
+    pub fn present() !void {}
 };

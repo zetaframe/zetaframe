@@ -49,7 +49,7 @@ pub const Program = struct {
 
         self.context.vkd.cmdSetViewport(cb, 0, 1, @ptrCast([*]const vk.Viewport, &viewport));
         self.context.vkd.cmdSetScissor(cb, 0, 1, @ptrCast([*]const vk.Rect2D, &scissor));
-        
+
         // execute
         for (self.steps) |step| {
             try switch (step) {
