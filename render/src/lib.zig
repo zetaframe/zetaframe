@@ -38,5 +38,13 @@ pub const Render = struct {
         self.backend.deinitFrames();
     }
 
-    pub fn present() !void {}
+    pub fn present(self: *Self, prog: *const program.Program) !void {
+        try self.backend.present(prog);
+    }
+
+    // Program Builder
+
+    pub fn buildProgram(self: *Self, steps: []const program.Step) program.Program {
+        return program.Program.build(&self.backend.context, steps);
+    }
 };

@@ -65,11 +65,11 @@ pub fn Object(comptime state: State) type {
         },
         context: *const Context,
 
-        clear_value: *const vk.ClearValue,
+        clear_value: ?*const vk.ClearValue,
 
         render_pass: vk.RenderPass,
 
-        pub fn build(render: *Render, clear_value: *const vk.ClearValue) !Self {
+        pub fn build(render: *Render, clear_value: ?*const vk.ClearValue) !Self {
             const context = &render.backend.context;
 
             // create ColorAttachments
@@ -154,6 +154,8 @@ pub fn Object(comptime state: State) type {
         pub fn execute(base: *const IObject, cb: vk.CommandBuffer, fb: Framebuffer) !void {
             const self = @fieldParentPtr(Self, "base", base);
 
+            const clear_value = if (self.clear_value) |cv| cv else &vk.ClearValue{ .color = .{ .float_32 = [4]f32{ 0.0, 0.0, 0.0, 1.0 } } };
+
             self.context.vkd.cmdBeginRenderPass(cb, .{
                 .render_pass = self.render_pass,
 
@@ -165,7 +167,7 @@ pub fn Object(comptime state: State) type {
                 },
 
                 .clear_value_count = 1,
-                .p_clear_values = @ptrCast([*]const vk.ClearValue, self.clear_value),
+                .p_clear_values = @ptrCast([*]const vk.ClearValue, clear_value),
             }, .@"inline");
         }
 
