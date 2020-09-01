@@ -4,9 +4,9 @@ pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]c
 pub extern fn glfwGetPhysicalDevicePresentationSupport(instance: vk.Instance, pdev: vk.PhysicalDevice, queuefamily: u32) callconv(vk.vulkan_call_conv) c_int;
 pub extern  fn glfwCreateWindowSurface(instance: vk.Instance, window: *GLFWwindow, allocation_callbacks: ?*const vk.AllocationCallbacks, surface: *vk.SurfaceKHR) callconv(vk.vulkan_call_conv) vk.Result;
 
-pub const GLFWmonitor = @OpaqueType();
-pub const GLFWwindow = @OpaqueType();
-pub const GLFWcursor = @OpaqueType();
+pub const GLFWmonitor = @Type(.Opaque);
+pub const GLFWwindow = @Type(.Opaque);
+pub const GLFWcursor = @Type(.Opaque);
 
 pub const GLFWglproc = ?fn () callconv(.C) void;
 pub const GLFWvkproc = ?fn () callconv(.C) void;
