@@ -22,7 +22,7 @@ pub const Render = struct {
             .allocator = allocator,
 
             .window = window,
-            .backend = backend.Backend.new(allocator, window, backend.Swapchain.new(), .{ .in_flight_frames = 2 }),
+            .backend = backend.Backend.new(allocator, window, backend.Swapchain.new()),
         };
     }
 
