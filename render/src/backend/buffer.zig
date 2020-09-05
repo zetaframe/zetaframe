@@ -10,6 +10,7 @@ pub const Buffer = struct {
     initFn: fn (self: *Buffer, allocator: *Allocator, vallocator: *zva.Allocator, context: *const Context) anyerror!void,
     deinitFn: fn (self: *Buffer) void,
     bufferFn: fn (self: *Buffer) vk.Buffer,
+    pushFn: fn (self: *Buffer) anyerror!void,
     lenFn: fn (self: *Buffer) u32,
 
     is_inited: bool = false,
@@ -27,6 +28,10 @@ pub const Buffer = struct {
 
     pub fn buffer(self: *Buffer) vk.Buffer {
         return self.bufferFn(self);
+    }
+
+    pub fn push(self: *Buffer) !void {
+        try self.pushFn(self);
     }
 
     pub fn len(self: *Buffer) u32 {
@@ -75,6 +80,7 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
                     .initFn = init,
                     .deinitFn = deinit,
                     .bufferFn = buffer,
+                    .pushFn = push,
                     .lenFn = len,
                 },
 
@@ -132,14 +138,19 @@ pub fn DirectBuffer(comptime T: type, comptime usage: Usage) type {
 
         pub fn update(self: *Self, data: []T) !void {
             std.debug.assert(data.len == self.len);
-
-            std.mem.copy(T, std.mem.bytesAsSlice(T, self.allocation.data), data);
+            self.data = data;
         }
 
         pub fn buffer(buf: *Buffer) vk.Buffer {
             const self = @fieldParentPtr(Self, "buf", buf);
 
             return self.buffer;
+        }
+
+        pub fn push(buf: *Buffer) !void {
+            const self = @fieldParentPtr(Self, "buf", buf);
+
+            std.mem.copy(T, std.mem.bytesAsSlice(T, self.allocation.data), self.data);
         }
 
         pub fn len(buf: *Buffer) u32 {
@@ -178,6 +189,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
                     .initFn = init,
                     .deinitFn = deinit,
                     .bufferFn = buffer,
+                    .pushFn = push,
                     .lenFn = len,
                 },
 
@@ -260,30 +272,7 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
 
         pub fn update(self: *Self, data: []T) !void {
             std.debug.assert(data.len == self.len);
-
-            const sBufferInfo = vk.BufferCreateInfo{
-                .size = self.size,
-
-                .usage = vk.BufferUsageFlags{ .transfer_src_bit = true },
-                .sharing_mode = .exclusive,
-
-                .flags = .{},
-                .queue_family_index_count = 0,
-                .p_queue_family_indices = undefined,
-            };
-
-            self.sbuffer = try self.context.vkd.createBuffer(self.context.device, sBufferInfo, null);
-
-            const sMemRequirements = self.context.vkd.getBufferMemoryRequirements(self.context.device, self.sbuffer);
-            self.sallocation = try self.vallocator.alloc(sMemRequirements.size, sMemRequirements.alignment, sMemRequirements.memory_type_bits, .CpuToGpu, .Buffer);
-            try self.context.vkd.bindBufferMemory(self.context.device, self.sbuffer, self.sallocation.memory, self.sallocation.offset);
-
-            std.mem.copy(T, std.mem.bytesAsSlice(T, self.sallocation.data), data);
-
-            try self.copyBuffer();
-
-            self.vallocator.free(self.sallocation);
-            self.context.vkd.destroyBuffer(self.context.device, self.sbuffer, null);
+            self.data = data;
         }
 
         pub fn copyBuffer(self: *Self) !void {
@@ -339,6 +328,34 @@ pub fn StagedBuffer(comptime T: type, comptime usage: Usage) type {
             const self = @fieldParentPtr(Self, "buf", buf);
 
             return self.dbuffer;
+        }
+
+        pub fn push(buf: *Buffer) vk.Buffer !void {
+            const self = @fieldParentPtr(Self, "buf", buf);
+
+            const sBufferInfo = vk.BufferCreateInfo{
+                .size = self.size,
+
+                .usage = vk.BufferUsageFlags{ .transfer_src_bit = true },
+                .sharing_mode = .exclusive,
+
+                .flags = .{},
+                .queue_family_index_count = 0,
+                .p_queue_family_indices = undefined,
+            };
+
+            self.sbuffer = try self.context.vkd.createBuffer(self.context.device, sBufferInfo, null);
+
+            const sMemRequirements = self.context.vkd.getBufferMemoryRequirements(self.context.device, self.sbuffer);
+            self.sallocation = try self.vallocator.alloc(sMemRequirements.size, sMemRequirements.alignment, sMemRequirements.memory_type_bits, .CpuToGpu, .Buffer);
+            try self.context.vkd.bindBufferMemory(self.context.device, self.sbuffer, self.sallocation.memory, self.sallocation.offset);
+
+            std.mem.copy(T, std.mem.bytesAsSlice(T, self.sallocation.data), self.data);
+
+            try self.copyBuffer();
+
+            self.vallocator.free(self.sallocation);
+            self.context.vkd.destroyBuffer(self.context.device, self.sbuffer, null);
         }
 
         pub fn len(buf: *Buffer) u32 {

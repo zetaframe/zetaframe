@@ -143,6 +143,9 @@ pub const SimpleCommand = struct {
     pub fn execute(base: *const program.command.IObject, context: *const backend.Context, cb: backend.vk.CommandBuffer, fb: backend.Framebuffer) !void {
         const self = @fieldParentPtr(Self, "base", base);
 
+        try self.vertex_buffer.push();
+        try self.index_buffer.push();
+
         const offset = [_]backend.vk.DeviceSize{0};
         context.vkd.cmdBindVertexBuffers(cb, 0, 1, @ptrCast([*]const backend.vk.Buffer, &self.vertex_buffer.buffer()), &offset);
         context.vkd.cmdBindIndexBuffer(cb, self.index_buffer.buffer(), 0, .uint16);
@@ -200,6 +203,17 @@ pub fn main() !void {
         clear_color.color.float_32[0] = @sin(counter);
         clear_color.color.float_32[1] = @sin(-counter);
         clear_color.color.float_32[2] = @cos(counter);
+
+        vertex1.color.x = @cos(-counter);
+        vertex2.color.y = @cos(-counter);
+        vertex3.color.z = @cos(-counter);
+        vertex4.color.x = @cos(-counter);
+        vertex1.pos.x = @cos(counter);
+        vertex1.pos.y = @cos(counter);
+        vertex2.pos.x = @cos(-counter);
+        vertex2.pos.y = @sin(-counter);
+
+        try vertex_buffer.update(&[_]Vertex{ vertex1, vertex2, vertex3, vertex4 });
 
         try render.present(&simple_program);
 
