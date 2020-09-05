@@ -53,8 +53,6 @@ pub fn build(b: *Builder) void {
         const run = exe.run();
         const step = b.step(ex.name, b.fmt("run example {}", .{ex.name}));
         step.dependOn(&run.step);
-
-        exe.install();
     }
 
     const gen_vk_bindings = vkgen.VkGenerateStep.init(b, "render/lib/vk.xml", "render/src/include/vk.zig");
