@@ -70,6 +70,7 @@ const DeviceDispatch = struct {
 
     vkCreateCommandPool: vk.PfnCreateCommandPool,
     vkDestroyCommandPool: vk.PfnDestroyCommandPool,
+    vkResetCommandPool: vk.PfnResetCommandPool,
 
     vkAllocateCommandBuffers: vk.PfnAllocateCommandBuffers,
     vkFreeCommandBuffers: vk.PfnFreeCommandBuffers,

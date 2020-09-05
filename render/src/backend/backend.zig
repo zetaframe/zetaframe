@@ -16,6 +16,9 @@ const windowing = @import("../windowing.zig");
 
 const ImageView = vk.ImageView;
 
+// Config
+pub const IN_FLIGHT_FRAMES = 2;
+
 pub const BackendError = error{
     NoValidDevices,
     ValidationLayersNotAvailable,
@@ -28,13 +31,7 @@ pub const BackendError = error{
 
 // Vulkan Backend
 pub const Backend = struct {
-    pub const Settings = struct {
-        in_flight_frames: u8,
-    };
-
     const Self = @This();
-
-    settings: Settings,
 
     allocator: *Allocator,
     vallocator: zva.Allocator,
@@ -51,10 +48,8 @@ pub const Backend = struct {
     frames: []Frame,
     frame_index: u32 = 0,
 
-    pub fn new(allocator: *Allocator, window: *windowing.Window, swapchain: Swapchain, settings: Settings) Self {
+    pub fn new(allocator: *Allocator, window: *windowing.Window, swapchain: Swapchain) Self {
         return Self{
-            .settings = settings,
-
             .allocator = allocator,
             .vallocator = undefined,
 
@@ -86,7 +81,7 @@ pub const Backend = struct {
 
         try self.swapchain.init(self.allocator, &self.context, self.window);
 
-        self.frames = try self.allocator.alloc(Frame, self.settings.in_flight_frames);
+        self.frames = try self.allocator.alloc(Frame, IN_FLIGHT_FRAMES);
         for (self.frames) |*frame| {
             frame.* = try Frame.init(&self.context);
         }
@@ -116,10 +111,7 @@ pub const Backend = struct {
         try self.swapchain.recreate();
 
         for (self.frames) |*frame| {
-            frame.deinit();
-        }
-        for (self.frames) |*frame| {
-            frame.* = try Frame.init(&self.context);
+            try frame.recreate();
         }
     }
 
@@ -153,7 +145,7 @@ pub const Backend = struct {
             return;
         }
 
-        self.frame_index = (self.frame_index + 1) % self.settings.in_flight_frames;
+        self.frame_index = (self.frame_index + 1) % IN_FLIGHT_FRAMES;
     }
 };
 
@@ -161,6 +153,7 @@ const Frame = struct {
     context: *const Context,
 
     command_buffer: vk.CommandBuffer,
+    command_pool: vk.CommandPool,
     framebuffer: ?Framebuffer,
 
     image_available: vk.Semaphore,
@@ -169,21 +162,31 @@ const Frame = struct {
     fence: vk.Fence,
 
     fn init(context: *const Context) !Frame {
-        var commandBuffer: vk.CommandBuffer = undefined;
+        var command_buffer: vk.CommandBuffer = undefined;
         try context.vkd.allocateCommandBuffers(context.device, .{
             .command_pool = context.graphics_pool,
 
             .level = .primary,
 
             .command_buffer_count = 1,
-        }, @ptrCast([*]vk.CommandBuffer, &commandBuffer));
-        errdefer context.vkd.freeCommandBuffers(context.device, context.graphics_pool, 1, @ptrCast([*]vk.CommandBuffer, &commandBuffer));
+        }, @ptrCast([*]vk.CommandBuffer, &command_buffer));
+        errdefer context.vkd.freeCommandBuffers(context.device, context.graphics_pool, 1, @ptrCast([*]vk.CommandBuffer, &command_buffer));
 
-        const imageAvailable = try context.vkd.createSemaphore(context.device, .{ .flags = .{} }, null);
-        errdefer context.vkd.destroySemaphore(context.device, imageAvailable, null);
+        var command_pool: vk.CommandPool = try context.vkd.createCommandPool(context.device, .{
+            .queue_family_index = context.indices.graphics_family.?,
 
-        const renderFinished = try context.vkd.createSemaphore(context.device, .{ .flags = .{} }, null);
-        errdefer context.vkd.destroySemaphore(context.device, renderFinished, null);
+            .flags = .{
+                .transient_bit = true,
+                .reset_command_buffer_bit = true,
+            },
+        }, null);
+        errdefer context.vkd.destroyCommandPool(context.device, command_pool, null);
+
+        const image_available = try context.vkd.createSemaphore(context.device, .{ .flags = .{} }, null);
+        errdefer context.vkd.destroySemaphore(context.device, image_available, null);
+
+        const render_finished = try context.vkd.createSemaphore(context.device, .{ .flags = .{} }, null);
+        errdefer context.vkd.destroySemaphore(context.device, render_finished, null);
 
         const fence = try context.vkd.createFence(context.device, .{ .flags = .{ .signaled_bit = true } }, null);
         errdefer context.vkd.destroyFence(context.device, fence, null);
@@ -191,11 +194,12 @@ const Frame = struct {
         return Frame{
             .context = context,
 
-            .command_buffer = commandBuffer,
+            .command_buffer = command_buffer,
+            .command_pool = command_pool,
             .framebuffer = null,
 
-            .image_available = imageAvailable,
-            .render_finished = renderFinished,
+            .image_available = image_available,
+            .render_finished = render_finished,
 
             .fence = fence,
         };
@@ -209,6 +213,19 @@ const Frame = struct {
         if (self.framebuffer) |fb| fb.deinit();
 
         self.context.vkd.freeCommandBuffers(self.context.device, self.context.graphics_pool, 1, @ptrCast([*]const vk.CommandBuffer, &self.command_buffer));
+        self.context.vkd.destroyCommandPool(self.context.device, self.command_pool, null);
+    }
+
+    fn recreate(self: *Frame) !void {
+        try self.context.vkd.resetCommandPool(self.context.device, self.command_pool, .{});
+
+        self.context.vkd.destroyFence(self.context.device, self.fence, null);
+
+        if (self.framebuffer) |fb| fb.deinit();
+        self.framebuffer = null;
+
+        self.fence = try self.context.vkd.createFence(self.context.device, .{ .flags = .{ .signaled_bit = true } }, null);
+        errdefer self.context.vkd.destroyFence(self.context.device, self.fence, null);
     }
 
     fn prepare(self: *Frame, program: *const Program, swapchain: *Swapchain, imageIndex: u32) !void {
